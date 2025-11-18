@@ -1,0 +1,63 @@
+# Visual Studio files
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.ipch
+*.aps
+*.ncb
+*.opendb
+*.db
+*.tlog
+*.log
+*.pdb
+*.sdf
+*.opensdf
+x64/
+x86/
+Debug/
+Release/
+build/
+Bin/
+Obj/
+
+# System files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Executable files
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+*.obj
+*.o
+*.out
+*.app
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+venv/
+env/
+
+# Student folder
+SEREGA_GLEBOV/
+
+# Large resource files (uncomment if needed)
+# *.jpg
+# *.png
+# *.bmp
+# *.mp4
