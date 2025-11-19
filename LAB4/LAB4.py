@@ -195,13 +195,13 @@ class GraphicsEditor:
             self.line_width = max(0.5, self.line_width - 0.5)
             print(f"Толщина линии: {self.line_width}")
         elif action == "input_line":
-            self.start_input("Введите координаты линии (x1,y1,x2,y2):", "line")
+            self.start_input("Введите координаты линии (x1,y1,z1,x2,y2,z2):", "line")
         elif action == "input_triangle":
-            self.start_input("Введите координаты треугольника (x1,y1,x2,y2,x3,y3):", "triangle")
+            self.start_input("Введите координаты треугольника (x1,y1,z1,x2,y2,z2,x3,y3,z3):", "triangle")
         elif action == "input_rect":
-            self.start_input("Введите координаты прямоугольника (x1,y1,x2,y2):", "rectangle")
+            self.start_input("Введите координаты прямоугольника (x1,y1,z1,x2,y2,z2):", "rectangle")
         elif action == "input_polygon":
-            self.start_input("Введите координаты полигона (x1,y1,x2,y2,...):", "polygon")
+            self.start_input("Введите координаты полигона (x1,y1,z1,x2,y2,z2,...):", "polygon")
         elif action == "zoom_in":
             self.camera_distance = min(-1, self.camera_distance + 0.5)
             print(f"Масштаб: {self.camera_distance}")
@@ -246,16 +246,16 @@ class GraphicsEditor:
         try:
             coords = [float(x.strip()) for x in self.input_text.split(',')]
             
-            if self.input_type == "line" and len(coords) == 4:
+            if self.input_type == "line" and len(coords) == 6:
                 self.primitives.append({"type": "line", "coords": coords})
                 print("Линия добавлена")
-            elif self.input_type == "triangle" and len(coords) == 6:
+            elif self.input_type == "triangle" and len(coords) == 9:
                 self.primitives.append({"type": "triangle", "coords": coords})
                 print("Треугольник добавлен")
-            elif self.input_type == "rectangle" and len(coords) == 4:
+            elif self.input_type == "rectangle" and len(coords) == 6:
                 self.primitives.append({"type": "rectangle", "coords": coords})
                 print("Прямоугольник добавлен")
-            elif self.input_type == "polygon" and len(coords) >= 6 and len(coords) % 2 == 0:
+            elif self.input_type == "polygon" and len(coords) >= 9 and len(coords) % 3 == 0:
                 self.primitives.append({"type": "polygon", "coords": coords})
                 print("Полигон добавлен")
             elif self.input_type == "light" and len(coords) == 3:
@@ -309,6 +309,60 @@ class GraphicsEditor:
         if self.render_modes[self.current_render_mode] == GL_POINT:
             glPointSize(self.line_width)
 
+    def draw_coordinate_system(self):
+        """Рисование системы координат с подписями"""
+        # Сохраняем состояние OpenGL
+        glPushAttrib(GL_ALL_ATTRIB_BITS)
+        glDisable(GL_LIGHTING)
+        
+        # Рисуем оси координат
+        glLineWidth(3.0)
+        
+        # Ось X (красная)
+        glColor3f(1.0, 0.0, 0.0)
+        glBegin(GL_LINES)
+        glVertex3f(-10.0, 0.0, 0.0)
+        glVertex3f(10.0, 0.0, 0.0)
+        glEnd()
+        
+        # Ось Y (зеленая)
+        glColor3f(0.0, 1.0, 0.0)
+        glBegin(GL_LINES)
+        glVertex3f(0.0, -10.0, 0.0)
+        glVertex3f(0.0, 10.0, 0.0)
+        glEnd()
+        
+        # Ось Z (синяя)
+        glColor3f(0.0, 0.0, 1.0)
+        glBegin(GL_LINES)
+        glVertex3f(0.0, 0.0, -10.0)
+        glVertex3f(0.0, 0.0, 10.0)
+        glEnd()
+        
+        # Рисуем метки на осях (точки)
+        glPointSize(6.0)
+        glBegin(GL_POINTS)
+        
+        # Метки на оси X
+        for i in range(-10, 11, 2):
+            if i != 0:
+                glVertex3f(i, 0.0, 0.0)
+        
+        # Метки на оси Y
+        for i in range(-10, 11, 2):
+            if i != 0:
+                glVertex3f(0.0, i, 0.0)
+        
+        # Метки на оси Z
+        for i in range(-10, 11, 2):
+            if i != 0:
+                glVertex3f(0.0, 0.0, i)
+        
+        glEnd()
+        
+        # Восстанавливаем состояние OpenGL
+        glPopAttrib()
+
     def draw_cone(self):
         """Рисование конуса с текстурой и освещением"""
         glPushMatrix()
@@ -358,7 +412,7 @@ class GraphicsEditor:
         glPushAttrib(GL_POLYGON_BIT)
             
         glColor4f(*self.object_color)
-        glDisable(GL_LIGHTING)  # Отключаем освещение для 2D примитивов
+        glDisable(GL_LIGHTING)  # Отключаем освещение для примитивов
         
         # Применяем текущий режим отрисовки к примитивам
         self.apply_render_mode()
@@ -367,32 +421,32 @@ class GraphicsEditor:
         for primitive in self.primitives:
             coords = primitive["coords"]
             
-            if primitive["type"] == "line" and len(coords) == 4:
+            if primitive["type"] == "line" and len(coords) == 6:
                 glBegin(GL_LINES)
-                glVertex3f(coords[0], coords[1], 0)
-                glVertex3f(coords[2], coords[3], 0)
+                glVertex3f(coords[0], coords[1], coords[2])
+                glVertex3f(coords[3], coords[4], coords[5])
                 glEnd()
                 
-            elif primitive["type"] == "triangle" and len(coords) == 6:
+            elif primitive["type"] == "triangle" and len(coords) == 9:
                 glBegin(GL_TRIANGLES)
-                glVertex3f(coords[0], coords[1], 0)
-                glVertex3f(coords[2], coords[3], 0)
-                glVertex3f(coords[4], coords[5], 0)
+                glVertex3f(coords[0], coords[1], coords[2])
+                glVertex3f(coords[3], coords[4], coords[5])
+                glVertex3f(coords[6], coords[7], coords[8])
                 glEnd()
                 
-            elif primitive["type"] == "rectangle" and len(coords) == 4:
-                x1, y1, x2, y2 = coords
+            elif primitive["type"] == "rectangle" and len(coords) == 6:
+                x1, y1, z1, x2, y2, z2 = coords
                 glBegin(GL_QUADS)
-                glVertex3f(x1, y1, 0)
-                glVertex3f(x2, y1, 0)
-                glVertex3f(x2, y2, 0)
-                glVertex3f(x1, y2, 0)
+                glVertex3f(x1, y1, z1)
+                glVertex3f(x2, y1, z1)
+                glVertex3f(x2, y2, z1)
+                glVertex3f(x1, y2, z1)
                 glEnd()
                 
-            elif primitive["type"] == "polygon" and len(coords) >= 6:
+            elif primitive["type"] == "polygon" and len(coords) >= 9 and len(coords) % 3 == 0:
                 glBegin(GL_POLYGON)
-                for i in range(0, len(coords), 2):
-                    glVertex3f(coords[i], coords[i+1], 0)
+                for i in range(0, len(coords), 3):
+                    glVertex3f(coords[i], coords[i+1], coords[i+2])
                 glEnd()
         
         # Отключаем пунктир, если был включен
@@ -412,7 +466,7 @@ class GraphicsEditor:
             
         glDisable(GL_LIGHTING)
         glColor3f(1.0, 1.0, 0.0)  # Желтый цвет для источников света
-        glPointSize(8.0)
+        glPointSize(10.0)
         
         glBegin(GL_POINTS)
         for light_pos in self.light_sources:
@@ -504,6 +558,20 @@ class GraphicsEditor:
         for i, text in enumerate(status_text):
             text_surf = self.font.render(text, True, (255, 255, 255))
             text_surface.blit(text_surf, (self.width - 200, 20 + i * 25))
+        
+        # Легенда системы координат
+        legend_text = [
+            "Система координат:",
+            "X - Красная ось",
+            "Y - Зеленая ось", 
+            "Z - Синяя ось",
+            "Метки: каждые 2 единицы"
+        ]
+        
+        for i, text in enumerate(legend_text):
+            color = (255, 255, 255) if i == 0 else (255, 0, 0) if i == 1 else (0, 255, 0) if i == 2 else (0, 0, 255) if i == 3 else (200, 200, 200)
+            text_surf = self.font.render(text, True, color)
+            text_surface.blit(text_surf, (self.width - 250, self.height - 150 + i * 20))
         
         # Инструкции по управлению
         instructions = [
@@ -608,6 +676,7 @@ class GraphicsEditor:
             self.setup_camera()
             
             # Отрисовка объектов
+            self.draw_coordinate_system()
             self.draw_cone()
             self.draw_primitives()
             self.draw_light_sources()
