@@ -3,6 +3,7 @@ import numpy as np
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from PIL import Image
+import os
 
 class GraphicsEditor:
     def __init__(self):
@@ -22,6 +23,8 @@ class GraphicsEditor:
         self.current_render_mode = 0  # Индекс текущего режима
         self.light_enabled = False
         self.texture_id = None
+        self.custom_texture_id = None  # ID для пользовательской текстуры
+        self.use_custom_texture = False  # Флаг использования пользовательской текстуры
         self.camera_distance = -5
         self.camera_rotation_x = 0
         self.camera_rotation_y = 0
@@ -32,7 +35,7 @@ class GraphicsEditor:
         self.input_active = False
         self.input_text = ""
         self.input_prompt = ""
-        self.input_type = None  # 'primitive' или 'light'
+        self.input_type = None  # 'primitive', 'light' или 'texture'
         self.input_coords = []
         
         # Переменные для выбора цвета
@@ -120,7 +123,7 @@ class GraphicsEditor:
         glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE)
 
     def create_texture(self):
-        """Создание пользовательской текстуры"""
+        """Создание пользовательской текстуры (шахматная доска)"""
         width, height = 256, 256
         texture_data = np.zeros((height, width, 3), dtype=np.uint8)
         
@@ -138,8 +141,47 @@ class GraphicsEditor:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
+    def load_custom_texture(self, filename):
+        """Загрузка и создание текстуры из файла изображения в текущей директории"""
+        try:
+            # Получаем путь к текущей директории
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            filepath = os.path.join(current_dir, filename)
+            
+            if not os.path.exists(filepath):
+                print(f"Файл {filename} не найден в директории программы")
+                return False
+            
+            # Загружаем изображение с помощью PIL
+            img = Image.open(filepath)
+            
+            # Конвертируем в RGB, если необходимо
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Изменяем размер до степени двойки (оптимально для текстур)
+            img = img.resize((256, 256), Image.Resampling.LANCZOS)
+            
+            # Конвертируем изображение в массив numpy
+            img_data = np.array(img)
+            
+            # Создаем текстуру OpenGL
+            self.custom_texture_id = glGenTextures(1)
+            glBindTexture(GL_TEXTURE_2D, self.custom_texture_id)
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 256, 256, 0, GL_RGB, GL_UNSIGNED_BYTE, img_data)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+            
+            print(f"Текстура загружена из {filename}")
+            return True
+            
+        except Exception as e:
+            print(f"Ошибка загрузки текстуры: {e}")
+            return False
+
     def setup_ui(self):
         """Создание элементов интерфейса"""
+        # Основные кнопки слева
         self.buttons = [
             {"rect": pygame.Rect(10, 10, 180, 30), "text": "Цвет фона", "action": "bg_color"},
             {"rect": pygame.Rect(10, 50, 180, 30), "text": "Цвет конуса", "action": "cone_color"},
@@ -149,7 +191,7 @@ class GraphicsEditor:
             {"rect": pygame.Rect(10, 210, 180, 30), "text": "Ввести координаты линии", "action": "input_line"},
             {"rect": pygame.Rect(10, 250, 180, 30), "text": "Ввести координаты треугольника", "action": "input_triangle"},
             {"rect": pygame.Rect(10, 290, 180, 30), "text": "Ввести координаты прямоугольника", "action": "input_rect"},
-            {"rect": pygame.Rect(10, 330, 180, 30), "text": "Ввести координаты многоугольника", "action": "input_polygon"},  # Изменено на "многоугольника"
+            {"rect": pygame.Rect(10, 330, 180, 30), "text": "Ввести координаты многоугольника", "action": "input_polygon"},
             {"rect": pygame.Rect(10, 370, 180, 30), "text": "Приблизить", "action": "zoom_in"},
             {"rect": pygame.Rect(10, 410, 180, 30), "text": "Отдалить", "action": "zoom_out"},
             {"rect": pygame.Rect(10, 450, 180, 30), "text": "Сменить режим отрисовки", "action": "change_render_mode"},
@@ -159,7 +201,14 @@ class GraphicsEditor:
             {"rect": pygame.Rect(10, 610, 180, 30), "text": "Вкл/Выкл свет", "action": "toggle_light"},
             {"rect": pygame.Rect(10, 650, 180, 30), "text": "Добавить источник света", "action": "add_light"},
             {"rect": pygame.Rect(10, 690, 180, 30), "text": "Вращать конус", "action": "rotate_cone"},
-            {"rect": pygame.Rect(10, 730, 180, 30), "text": "Очистить объекты", "action": "clear_objects"}
+            {"rect": pygame.Rect(10, 730, 180, 30), "text": "Очистить объекты", "action": "clear_objects"},
+        ]
+        
+        # Кнопки текстур справа
+        self.texture_buttons = [
+            {"rect": pygame.Rect(self.width - 190, 10, 180, 30), "text": "Загрузить текстуру", "action": "load_texture"},
+            {"rect": pygame.Rect(self.width - 190, 50, 180, 30), "text": "Исп. свою текстуру", "action": "toggle_texture"},
+            {"rect": pygame.Rect(self.width - 190, 90, 180, 30), "text": "Исп. шахматную текстуру", "action": "use_checker_texture"}
         ]
 
     def handle_events(self):
@@ -174,7 +223,7 @@ class GraphicsEditor:
                     else:
                         self.handle_click(event.pos)
                         # Начало вращения камеры
-                        if not any(button["rect"].collidepoint(event.pos) for button in self.buttons):
+                        if not any(button["rect"].collidepoint(event.pos) for button in self.buttons + self.texture_buttons):
                             self.is_rotating = True
                             self.last_mouse_pos = event.pos
                 elif event.button == 4:  # Колесо мыши вверх
@@ -221,7 +270,14 @@ class GraphicsEditor:
 
     def handle_click(self, pos):
         """Обработка кликов по интерфейсу"""
+        # Проверяем основные кнопки
         for button in self.buttons:
+            if button["rect"].collidepoint(pos):
+                self.execute_action(button["action"])
+                return
+                
+        # Проверяем кнопки текстур
+        for button in self.texture_buttons:
             if button["rect"].collidepoint(pos):
                 self.execute_action(button["action"])
                 return
@@ -377,6 +433,20 @@ class GraphicsEditor:
             print(f"Вращение конуса: {self.cone_rotation}")
         elif action == "clear_objects":
             self.clear_objects()
+        elif action == "load_texture":
+            self.start_input("Введите имя файла текстуры (в папке с программой):", "texture")
+        elif action == "toggle_texture":
+            if self.custom_texture_id is not None:
+                self.use_custom_texture = not self.use_custom_texture
+                if self.use_custom_texture:
+                    print("Используется пользовательская текстура")
+                else:
+                    print("Используется стандартная текстура")
+            else:
+                print("Сначала загрузите текстуру")
+        elif action == "use_checker_texture":
+            self.use_custom_texture = False
+            print("Используется шахматная текстура")
 
     def start_input_for_primitive(self):
         """Запускает ввод координат для выбранного примитива"""
@@ -399,51 +469,65 @@ class GraphicsEditor:
         print(prompt)
 
     def process_input(self):
-        """Обрабатывает введенные координаты"""
+        """Обрабатывает введенные данные"""
         try:
-            coords = [float(x.strip()) for x in self.input_text.split(',')]
-            
-            if self.input_type == "line" and len(coords) == 6:
-                self.primitives.append({
-                    "type": "line", 
-                    "coords": coords,
-                    "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
-                })
-                print("Линия добавлена")
-            elif self.input_type == "triangle" and len(coords) == 9:
-                self.primitives.append({
-                    "type": "triangle", 
-                    "coords": coords,
-                    "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
-                })
-                print("Треугольник добавлен")
-            elif self.input_type == "rectangle" and len(coords) == 6:
-                self.primitives.append({
-                    "type": "rectangle", 
-                    "coords": coords,
-                    "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
-                })
-                print("Прямоугольник добавлен")
-            elif self.input_type == "polygon" and len(coords) >= 9 and len(coords) % 3 == 0:
-                self.primitives.append({
-                    "type": "polygon", 
-                    "coords": coords,
-                    "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
-                })
-                print("Многоугольник добавлен")
-            elif self.input_type == "light" and len(coords) == 3:
-                self.light_sources.append(coords)
-                self.setup_lighting()  # Обновляем освещение
-                print(f"Источник света добавлен в позиции {coords}")
+            if self.input_type == "texture":
+                # Обработка ввода имени файла текстуры
+                filename = self.input_text.strip()
+                if filename:
+                    if self.load_custom_texture(filename):
+                        self.use_custom_texture = True
+                        print("Текстура успешно загружена и применена")
+                    else:
+                        print("Ошибка загрузки текстуры")
+                else:
+                    print("Имя файла не может быть пустым")
+                    
             else:
-                print("Ошибка: неверное количество координат")
-                return
+                # Обработка ввода координат (существующий код)
+                coords = [float(x.strip()) for x in self.input_text.split(',')]
+                
+                if self.input_type == "line" and len(coords) == 6:
+                    self.primitives.append({
+                        "type": "line", 
+                        "coords": coords,
+                        "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
+                    })
+                    print("Линия добавлена")
+                elif self.input_type == "triangle" and len(coords) == 9:
+                    self.primitives.append({
+                        "type": "triangle", 
+                        "coords": coords,
+                        "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
+                    })
+                    print("Треугольник добавлен")
+                elif self.input_type == "rectangle" and len(coords) == 6:
+                    self.primitives.append({
+                        "type": "rectangle", 
+                        "coords": coords,
+                        "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
+                    })
+                    print("Прямоугольник добавлен")
+                elif self.input_type == "polygon" and len(coords) >= 9 and len(coords) % 3 == 0:
+                    self.primitives.append({
+                        "type": "polygon", 
+                        "coords": coords,
+                        "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
+                    })
+                    print("Многоугольник добавлен")
+                elif self.input_type == "light" and len(coords) == 3:
+                    self.light_sources.append(coords)
+                    self.setup_lighting()  # Обновляем освещение
+                    print(f"Источник света добавлен в позиции {coords}")
+                else:
+                    print("Ошибка: неверное количество координат")
+                    return
                 
             self.input_active = False
             self.input_text = ""
             
         except ValueError:
-            print("Ошибка: неверный формат координат")
+            print("Ошибка: неверный формат данных")
 
     def clear_objects(self):
         """Очищает все объекты, кроме конуса"""
@@ -550,7 +634,12 @@ class GraphicsEditor:
             glDisable(GL_LIGHTING)
         
         glEnable(GL_TEXTURE_2D)
-        glBindTexture(GL_TEXTURE_2D, self.texture_id)
+        
+        # Выбираем текстуру в зависимости от флага
+        if self.use_custom_texture and self.custom_texture_id is not None:
+            glBindTexture(GL_TEXTURE_2D, self.custom_texture_id)
+        else:
+            glBindTexture(GL_TEXTURE_2D, self.texture_id)
         
         # Сохраняем текущий режим полигона
         glPushAttrib(GL_POLYGON_BIT)
@@ -785,8 +874,29 @@ class GraphicsEditor:
         # Принудительно устанавливаем режим заливки для кнопок
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         
-        # Отрисовка кнопок
+        # Отрисовка основных кнопок слева
         for button in self.buttons:
+            # Рисуем прямоугольник кнопки
+            glColor3f(0.8, 0.8, 0.8)
+            glBegin(GL_QUADS)
+            glVertex2f(button["rect"].left, button["rect"].top)
+            glVertex2f(button["rect"].right, button["rect"].top)
+            glVertex2f(button["rect"].right, button["rect"].bottom)
+            glVertex2f(button["rect"].left, button["rect"].bottom)
+            glEnd()
+            
+            # Рамка кнопки
+            glColor3f(0.3, 0.3, 0.3)
+            glLineWidth(2.0)
+            glBegin(GL_LINE_LOOP)
+            glVertex2f(button["rect"].left, button["rect"].top)
+            glVertex2f(button["rect"].right, button["rect"].top)
+            glVertex2f(button["rect"].right, button["rect"].bottom)
+            glVertex2f(button["rect"].left, button["rect"].bottom)
+            glEnd()
+        
+        # Отрисовка кнопок текстур справа
+        for button in self.texture_buttons:
             # Рисуем прямоугольник кнопки
             glColor3f(0.8, 0.8, 0.8)
             glBegin(GL_QUADS)
@@ -829,8 +939,14 @@ class GraphicsEditor:
         text_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         text_surface.fill((0, 0, 0, 0))  # Прозрачный фон
         
-        # Отрисовка текста кнопок
+        # Отрисовка текста основных кнопок
         for button in self.buttons:
+            text = self.font.render(button["text"], True, (0, 0, 0))
+            text_rect = text.get_rect(center=button["rect"].center)
+            text_surface.blit(text, text_rect)
+        
+        # Отрисовка текста кнопок текстур
+        for button in self.texture_buttons:
             text = self.font.render(button["text"], True, (0, 0, 0))
             text_rect = text.get_rect(center=button["rect"].center)
             text_surface.blit(text, text_rect)
@@ -845,7 +961,8 @@ class GraphicsEditor:
             f"Источников света: {len(self.light_sources)}",
             f"Свет: {'ВКЛ' if self.light_enabled else 'ВЫКЛ'}",
             f"Толщина: {self.line_width}",
-            f"Тип линии: {line_style_names.get(self.line_style, 'Сплошная')}"
+            f"Тип линии: {line_style_names.get(self.line_style, 'Сплошная')}",
+            f"Текстура: {'Пользовательская' if self.use_custom_texture and self.custom_texture_id is not None else 'Шахматная'}"
         ]
         
         for i, text in enumerate(status_text):
