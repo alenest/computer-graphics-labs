@@ -214,7 +214,10 @@ class GraphicsEditor:
         glEnable(GL_TEXTURE_2D)
         glBindTexture(GL_TEXTURE_2D, self.texture_id)
         
+        # Сохраняем текущий режим полигона
+        glPushAttrib(GL_POLYGON_BIT)
         glPolygonMode(GL_FRONT_AND_BACK, self.render_mode)
+        
         glColor4f(*self.object_color)
         
         # Рисуем конус
@@ -223,6 +226,9 @@ class GraphicsEditor:
         gluCylinder(quadric, 1, 0, 2, 32, 32)  # Конус = цилиндр с верхним радиусом 0
         gluDeleteQuadric(quadric)
         
+        # Восстанавливаем режим полигона
+        glPopAttrib()
+        
         glDisable(GL_TEXTURE_2D)
         glPopMatrix()
 
@@ -230,6 +236,9 @@ class GraphicsEditor:
         """Рисование выбранного примитива"""
         if len(self.points) < 2:
             return
+        
+        # Сохраняем текущий режим полигона
+        glPushAttrib(GL_POLYGON_BIT)
             
         glColor4f(*self.object_color)
         glLineWidth(self.line_width)
@@ -282,9 +291,15 @@ class GraphicsEditor:
         
         if self.light_enabled:
             glEnable(GL_LIGHTING)
+            
+        # Восстанавливаем режим полигона
+        glPopAttrib()
 
     def draw_ui(self):
         """Отрисовка интерфейса с помощью PyGame"""
+        # Сохраняем все атрибуты OpenGL
+        glPushAttrib(GL_ALL_ATTRIB_BITS)
+        
         # Переключаемся на 2D режим для отрисовки UI
         glMatrixMode(GL_PROJECTION)
         glPushMatrix()
@@ -296,6 +311,9 @@ class GraphicsEditor:
         
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_LIGHTING)
+        
+        # Принудительно устанавливаем режим заливки для кнопок
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         
         # Отрисовка кнопок
         for button in self.buttons:
@@ -324,6 +342,9 @@ class GraphicsEditor:
         glPopMatrix()
         glMatrixMode(GL_MODELVIEW)
         glPopMatrix()
+        
+        # Восстанавливаем атрибуты OpenGL
+        glPopAttrib()
         
         # Отрисовка текста с помощью PyGame (поверх OpenGL)
         self.draw_text_with_pygame()
@@ -380,6 +401,9 @@ class GraphicsEditor:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         
+        # Сохраняем атрибуты OpenGL
+        glPushAttrib(GL_ALL_ATTRIB_BITS)
+        
         # Рисуем текстуру поверх всего
         glMatrixMode(GL_PROJECTION)
         glPushMatrix()
@@ -409,6 +433,9 @@ class GraphicsEditor:
         glPopMatrix()
         glDisable(GL_TEXTURE_2D)
         glDeleteTextures([text_texture])
+        
+        # Восстанавливаем атрибуты OpenGL
+        glPopAttrib()
 
     def run(self):
         """Основной цикл программы"""
