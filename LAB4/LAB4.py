@@ -369,6 +369,9 @@ class GraphicsEditor:
             text_surface.blit(text_surf, (10, self.height - 150 + i * 20))
         
         # Конвертируем поверхность PyGame в текстуру OpenGL
+        # Переворачиваем поверхность, чтобы исправить перевернутый текст
+        text_surface = pygame.transform.flip(text_surface, False, True)
+        
         texture_data = pygame.image.tostring(text_surface, "RGBA", True)
         glEnable(GL_TEXTURE_2D)
         text_texture = glGenTextures(1)
