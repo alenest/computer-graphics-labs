@@ -215,6 +215,23 @@ class GraphicsEditor:
         glRotatef(self.camera_rotation_x, 1, 0, 0)
         glRotatef(self.camera_rotation_y, 0, 1, 0)
 
+    def apply_render_mode(self):
+        """Применяет текущий режим отрисовки ко всем объектам"""
+        # Устанавливаем режим отрисовки
+        glPolygonMode(GL_FRONT_AND_BACK, self.render_modes[self.current_render_mode])
+        
+        # Устанавливаем толщину линии для каркасного режима
+        if self.render_modes[self.current_render_mode] == GL_LINE:
+            glLineWidth(self.line_width)
+            # Устанавливаем тип линии
+            if self.line_style != 0xFFFF:
+                glEnable(GL_LINE_STIPPLE)
+                glLineStipple(self.line_stipple_factor, self.line_style)
+        
+        # Устанавливаем размер точек для точечного режима
+        if self.render_modes[self.current_render_mode] == GL_POINT:
+            glPointSize(self.line_width)
+
     def draw_cone(self):
         """Рисование конуса с текстурой и освещением"""
         glPushMatrix()
@@ -234,20 +251,8 @@ class GraphicsEditor:
         # Сохраняем текущий режим полигона
         glPushAttrib(GL_POLYGON_BIT)
         
-        # Устанавливаем режим отрисовки
-        glPolygonMode(GL_FRONT_AND_BACK, self.render_modes[self.current_render_mode])
-        
-        # Устанавливаем толщину линии для каркасного режима
-        if self.render_modes[self.current_render_mode] == GL_LINE:
-            glLineWidth(self.line_width)
-            # Устанавливаем тип линии
-            if self.line_style != 0xFFFF:
-                glEnable(GL_LINE_STIPPLE)
-                glLineStipple(self.line_stipple_factor, self.line_style)
-        
-        # Устанавливаем размер точек для точечного режима
-        if self.render_modes[self.current_render_mode] == GL_POINT:
-            glPointSize(self.line_width)
+        # Применяем текущий режим отрисовки
+        self.apply_render_mode()
         
         glColor4f(*self.object_color)
         
@@ -268,7 +273,7 @@ class GraphicsEditor:
         glPopMatrix()
 
     def draw_primitive(self):
-        """Рисование выбранного примитива"""
+        """Рисование выбранного примитива с учетом текущего режима отрисовки"""
         if len(self.points) < 2:
             return
         
@@ -278,16 +283,12 @@ class GraphicsEditor:
         glColor4f(*self.object_color)
         glDisable(GL_LIGHTING)  # Отключаем освещение для 2D примитивов
         
-        # Устанавливаем толщину линии и тип для 2D примитивов
-        glLineWidth(self.line_width)
-        if self.line_style != 0xFFFF:
-            glEnable(GL_LINE_STIPPLE)
-            glLineStipple(self.line_stipple_factor, self.line_style)
+        # Применяем текущий режим отрисовки к 2D примитивам
+        self.apply_render_mode()
         
-        # Устанавливаем размер точек
-        glPointSize(self.line_width)
-        
+        # Определяем, как рисовать примитивы в зависимости от режима
         if self.drawing_mode == "draw_line" and len(self.points) >= 2:
+            # Для линий всегда используем GL_LINES
             glBegin(GL_LINES)
             for i in range(0, len(self.points), 2):
                 if i+1 < len(self.points):
@@ -298,6 +299,7 @@ class GraphicsEditor:
             glEnd()
             
         elif self.drawing_mode == "draw_triangle" and len(self.points) >= 3:
+            # Для треугольников используем GL_TRIANGLES, который будет отображаться в текущем режиме
             glBegin(GL_TRIANGLES)
             for i in range(0, len(self.points), 3):
                 if i+2 < len(self.points):
@@ -307,6 +309,7 @@ class GraphicsEditor:
             glEnd()
             
         elif self.drawing_mode == "draw_rect" and len(self.points) >= 2:
+            # Для прямоугольников используем GL_QUADS, который будет отображаться в текущем режиме
             for i in range(0, len(self.points), 2):
                 if i+1 < len(self.points):
                     x1, y1 = self.points[i]
@@ -319,20 +322,22 @@ class GraphicsEditor:
                     glEnd()
             
         elif self.drawing_mode == "draw_polygon" and len(self.points) > 2:
+            # Для полигонов используем GL_POLYGON, который будет отображаться в текущем режиме
             glBegin(GL_POLYGON)
             for x, y in self.points:
                 glVertex3f(x, y, 0)
             glEnd()
         
-        # Рисуем точки для визуализации
-        glBegin(GL_POINTS)
-        glColor3f(1.0, 0.0, 0.0)  # Красные точки
-        for x, y in self.points:
-            glVertex3f(x, y, 0)
-        glEnd()
+        # Рисуем точки для визуализации (только в режимах заливки и каркаса)
+        if self.render_modes[self.current_render_mode] != GL_POINT:
+            glBegin(GL_POINTS)
+            glColor3f(1.0, 0.0, 0.0)  # Красные точки
+            for x, y in self.points:
+                glVertex3f(x, y, 0)
+            glEnd()
         
         # Отключаем пунктир, если был включен
-        if self.line_style != 0xFFFF:
+        if self.render_modes[self.current_render_mode] == GL_LINE and self.line_style != 0xFFFF:
             glDisable(GL_LINE_STIPPLE)
             
         if self.light_enabled:
