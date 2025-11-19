@@ -9,12 +9,15 @@ class GraphicsEditor:
         self.width, self.height = 1200, 800
         self.background_color = [0.0, 0.0, 0.0, 1.0]
         self.object_color = [1.0, 1.0, 1.0, 1.0]
-        self.line_width = 1.0
+        self.line_width = 2.0
+        self.line_style = 0xFFFF  # Сплошная линия по умолчанию
+        self.line_stipple_factor = 1
         self.drawing_mode = None
         self.points = []
         self.scale = 1.0
         self.cone_rotation = [0, 0, 0]
-        self.render_mode = GL_FILL
+        self.render_modes = [GL_FILL, GL_LINE, GL_POINT]
+        self.current_render_mode = 0  # Индекс текущего режима
         self.light_enabled = False
         self.texture_id = None
         self.camera_distance = -5
@@ -84,12 +87,13 @@ class GraphicsEditor:
             {"rect": pygame.Rect(10, 290, 180, 30), "text": "Рисовать полигон", "action": "draw_polygon"},
             {"rect": pygame.Rect(10, 330, 180, 30), "text": "Приблизить", "action": "zoom_in"},
             {"rect": pygame.Rect(10, 370, 180, 30), "text": "Отдалить", "action": "zoom_out"},
-            {"rect": pygame.Rect(10, 410, 180, 30), "text": "Режим точек", "action": "render_points"},
-            {"rect": pygame.Rect(10, 450, 180, 30), "text": "Режим каркаса", "action": "render_wire"},
-            {"rect": pygame.Rect(10, 490, 180, 30), "text": "Режим заливки", "action": "render_solid"},
-            {"rect": pygame.Rect(10, 530, 180, 30), "text": "Вкл/Выкл свет", "action": "toggle_light"},
-            {"rect": pygame.Rect(10, 570, 180, 30), "text": "Вращать конус", "action": "rotate_cone"},
-            {"rect": pygame.Rect(10, 610, 180, 30), "text": "Очистить точки", "action": "clear_points"}
+            {"rect": pygame.Rect(10, 410, 180, 30), "text": "Сменить режим отрисовки", "action": "change_render_mode"},
+            {"rect": pygame.Rect(10, 450, 180, 30), "text": "Сплошная линия", "action": "solid_line"},
+            {"rect": pygame.Rect(10, 490, 180, 30), "text": "Пунктирная линия", "action": "dashed_line"},
+            {"rect": pygame.Rect(10, 530, 180, 30), "text": "Точечная линия", "action": "dotted_line"},
+            {"rect": pygame.Rect(10, 570, 180, 30), "text": "Вкл/Выкл свет", "action": "toggle_light"},
+            {"rect": pygame.Rect(10, 610, 180, 30), "text": "Вращать конус", "action": "rotate_cone"},
+            {"rect": pygame.Rect(10, 650, 180, 30), "text": "Очистить точки", "action": "clear_points"}
         ]
 
     def handle_events(self):
@@ -131,6 +135,8 @@ class GraphicsEditor:
                     self.camera_rotation_x = 0
                     self.camera_rotation_y = 0
                     self.camera_distance = -5
+                elif event.key == pygame.K_m:
+                    self.change_render_mode()  # Смена режима отрисовки по клавише M
         return True
 
     def handle_click(self, pos):
@@ -172,15 +178,20 @@ class GraphicsEditor:
         elif action == "zoom_out":
             self.camera_distance = max(-20, self.camera_distance - 0.5)
             print(f"Масштаб: {self.camera_distance}")
-        elif action == "render_points":
-            self.render_mode = GL_POINT
-            print("Режим отрисовки: Точки")
-        elif action == "render_wire":
-            self.render_mode = GL_LINE
-            print("Режим отрисовки: Каркас")
-        elif action == "render_solid":
-            self.render_mode = GL_FILL
-            print("Режим отрисовки: Заливка")
+        elif action == "change_render_mode":
+            self.change_render_mode()
+        elif action == "solid_line":
+            self.line_style = 0xFFFF  # Сплошная линия
+            self.line_stipple_factor = 1
+            print("Тип линии: Сплошная")
+        elif action == "dashed_line":
+            self.line_style = 0xF0F0  # Пунктирная линия
+            self.line_stipple_factor = 1
+            print("Тип линии: Пунктирная")
+        elif action == "dotted_line":
+            self.line_style = 0xAAAA  # Точечная линия
+            self.line_stipple_factor = 1
+            print("Тип линии: Точечная")
         elif action == "toggle_light":
             self.light_enabled = not self.light_enabled
             print(f"Освещение: {'ВКЛ' if self.light_enabled else 'ВЫКЛ'}")
@@ -190,6 +201,12 @@ class GraphicsEditor:
         elif action == "clear_points":
             self.points = []
             print("Очищены все точки")
+
+    def change_render_mode(self):
+        """Циклическое переключение режимов отрисовки"""
+        self.current_render_mode = (self.current_render_mode + 1) % len(self.render_modes)
+        mode_names = ["Заливка", "Каркас", "Точки"]
+        print(f"Режим отрисовки: {mode_names[self.current_render_mode]}")
 
     def setup_camera(self):
         """Настройка камеры с вращением"""
@@ -216,7 +233,21 @@ class GraphicsEditor:
         
         # Сохраняем текущий режим полигона
         glPushAttrib(GL_POLYGON_BIT)
-        glPolygonMode(GL_FRONT_AND_BACK, self.render_mode)
+        
+        # Устанавливаем режим отрисовки
+        glPolygonMode(GL_FRONT_AND_BACK, self.render_modes[self.current_render_mode])
+        
+        # Устанавливаем толщину линии для каркасного режима
+        if self.render_modes[self.current_render_mode] == GL_LINE:
+            glLineWidth(self.line_width)
+            # Устанавливаем тип линии
+            if self.line_style != 0xFFFF:
+                glEnable(GL_LINE_STIPPLE)
+                glLineStipple(self.line_stipple_factor, self.line_style)
+        
+        # Устанавливаем размер точек для точечного режима
+        if self.render_modes[self.current_render_mode] == GL_POINT:
+            glPointSize(self.line_width)
         
         glColor4f(*self.object_color)
         
@@ -225,6 +256,10 @@ class GraphicsEditor:
         gluQuadricTexture(quadric, GL_TRUE)
         gluCylinder(quadric, 1, 0, 2, 32, 32)  # Конус = цилиндр с верхним радиусом 0
         gluDeleteQuadric(quadric)
+        
+        # Отключаем пунктир, если был включен
+        if self.render_modes[self.current_render_mode] == GL_LINE and self.line_style != 0xFFFF:
+            glDisable(GL_LINE_STIPPLE)
         
         # Восстанавливаем режим полигона
         glPopAttrib()
@@ -241,8 +276,16 @@ class GraphicsEditor:
         glPushAttrib(GL_POLYGON_BIT)
             
         glColor4f(*self.object_color)
-        glLineWidth(self.line_width)
         glDisable(GL_LIGHTING)  # Отключаем освещение для 2D примитивов
+        
+        # Устанавливаем толщину линии и тип для 2D примитивов
+        glLineWidth(self.line_width)
+        if self.line_style != 0xFFFF:
+            glEnable(GL_LINE_STIPPLE)
+            glLineStipple(self.line_stipple_factor, self.line_style)
+        
+        # Устанавливаем размер точек
+        glPointSize(self.line_width)
         
         if self.drawing_mode == "draw_line" and len(self.points) >= 2:
             glBegin(GL_LINES)
@@ -282,13 +325,16 @@ class GraphicsEditor:
             glEnd()
         
         # Рисуем точки для визуализации
-        glPointSize(5.0)
         glBegin(GL_POINTS)
         glColor3f(1.0, 0.0, 0.0)  # Красные точки
         for x, y in self.points:
             glVertex3f(x, y, 0)
         glEnd()
         
+        # Отключаем пунктир, если был включен
+        if self.line_style != 0xFFFF:
+            glDisable(GL_LINE_STIPPLE)
+            
         if self.light_enabled:
             glEnable(GL_LIGHTING)
             
@@ -362,12 +408,15 @@ class GraphicsEditor:
             text_surface.blit(text, text_rect)
         
         # Отображаем информацию о состоянии
+        mode_names = ["Заливка", "Каркас", "Точки"]
+        line_style_names = {0xFFFF: "Сплошная", 0xF0F0: "Пунктир", 0xAAAA: "Точечная"}
+        
         status_text = [
-            f"Рисование: {self.drawing_mode}",
+            f"Режим: {mode_names[self.current_render_mode]}",
             f"Точек: {len(self.points)}",
             f"Свет: {'ВКЛ' if self.light_enabled else 'ВЫКЛ'}",
-            f"Вращение: {self.camera_rotation_y:.1f}°",
-            f"Масштаб: {self.camera_distance:.1f}"
+            f"Толщина: {self.line_width}",
+            f"Тип линии: {line_style_names.get(self.line_style, 'Сплошная')}"
         ]
         
         for i, text in enumerate(status_text):
@@ -382,12 +431,13 @@ class GraphicsEditor:
             "Пробел - сброс камеры",
             "R - сброс вращения конуса",
             "L - переключение света",
+            "M - смена режима отрисовки",
             "C - очистка точек"
         ]
         
         for i, text in enumerate(instructions):
             text_surf = self.font.render(text, True, (200, 200, 255))
-            text_surface.blit(text_surf, (10, self.height - 150 + i * 20))
+            text_surface.blit(text_surf, (10, self.height - 180 + i * 20))
         
         # Конвертируем поверхность PyGame в текстуру OpenGL
         # Переворачиваем поверхность, чтобы исправить перевернутый текст
@@ -451,6 +501,7 @@ class GraphicsEditor:
         print("- Space: Reset camera")
         print("- R key: Reset cone rotation")
         print("- L key: Toggle lighting")
+        print("- M key: Change render mode")
         print("- C key: Clear points")
         
         while running:
