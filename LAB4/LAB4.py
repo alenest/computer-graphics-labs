@@ -39,6 +39,9 @@ class GraphicsEditor:
         self.color_picker_active = False
         self.color_picker_type = None  # 'background', 'cone', 'primitive'
         
+        # Кэшированные текстуры для оптимизации
+        self.palette_texture = None
+        
         # Инициализация интерфейса
         pygame.init()
         self.screen = pygame.display.set_mode((self.width, self.height), pygame.DOUBLEBUF | pygame.OPENGL)
@@ -57,6 +60,38 @@ class GraphicsEditor:
         self.create_texture()
         self.setup_ui()
         self.setup_lighting()
+        
+        # Создаем текстуру палитры один раз при инициализации
+        self.create_palette_texture()
+
+    def create_palette_texture(self):
+        """Создание текстуры палитры один раз для оптимизации"""
+        # Создаем поверхность для палитры
+        palette_surface = pygame.Surface((300, 300), pygame.SRCALPHA)
+        
+        # Рисуем палитру цветов (спектр HSV) - ПРАВИЛЬНО ПЕРЕВЕРНУТУЮ
+        for y in range(300):
+            for x in range(300):
+                hue = x / 300
+                saturation = 1.0
+                value = 1.0 - (y / 300)  # Переворачиваем по Y
+                
+                color = self.hsv_to_rgb(hue, saturation, value)
+                color_int = [int(c * 255) for c in color]
+                
+                palette_surface.set_at((x, y), color_int)
+        
+        # Рамка палитры
+        pygame.draw.rect(palette_surface, (255, 255, 255), (0, 0, 300, 300), 2)
+        
+        # Конвертируем поверхность в текстуру OpenGL
+        palette_data = pygame.image.tostring(palette_surface, "RGBA", True)
+        
+        self.palette_texture = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, self.palette_texture)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 300, 300, 0, GL_RGBA, GL_UNSIGNED_BYTE, palette_data)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
     def setup_lighting(self):
         """Настройка освещения"""
@@ -191,33 +226,38 @@ class GraphicsEditor:
 
     def handle_color_picker_click(self, pos):
         """Обработка кликов в палитре цветов"""
-        # Проверяем, был ли клик в области палитры
         palette_rect = pygame.Rect(self.width // 2 - 150, self.height // 2 - 150, 300, 300)
+        close_button_rect = pygame.Rect(self.width // 2 + 160, self.height // 2 - 150, 30, 30)  # Квадратная кнопка закрытия
+        
+        # Проверяем, был ли клик в области палитры
         if palette_rect.collidepoint(pos):
             # Получаем цвет из позиции клика
             x, y = pos
             rel_x = x - palette_rect.left
             rel_y = y - palette_rect.top
             
-            # Вычисляем цвет на основе позиции в палитре
+            # Вычисляем цвет на основе позиции в палитре (переворачиваем Y)
             hue = rel_x / palette_rect.width
             saturation = 1.0
-            value = 1.0 - (rel_y / palette_rect.height)
+            value = 1.0 - (rel_y / palette_rect.height)  # Переворачиваем по Y
             
             # Преобразуем HSV в RGB
             color = self.hsv_to_rgb(hue, saturation, value)
+            selected_color = color + [1.0]
             
-            # Применяем выбранный цвет
+            # Сразу применяем выбранный цвет
             if self.color_picker_type == 'background':
-                self.background_color = color + [1.0]
-                print(f"Цвет фона изменен на {color}")
+                self.background_color = selected_color
+                print(f"Цвет фона изменен на {selected_color}")
             elif self.color_picker_type == 'cone':
-                self.cone_color = color + [1.0]
-                print(f"Цвет конуса изменен на {color}")
+                self.cone_color = selected_color
+                print(f"Цвет конуса изменен на {selected_color}")
             elif self.color_picker_type == 'primitive':
-                self.current_primitive_color = color + [1.0]
-                print(f"Цвет фигур изменен на {color}")
+                self.current_primitive_color = selected_color
+                print(f"Цвет фигур изменен на {selected_color}")
             
+        # Проверяем, был ли клик на кнопке закрытия
+        elif close_button_rect.collidepoint(pos):
             # Закрываем палитру
             self.color_picker_active = False
 
@@ -571,34 +611,6 @@ class GraphicsEditor:
 
     def draw_color_picker(self):
         """Отрисовка палитры цветов"""
-        # Создаем поверхность для палитры
-        palette_surface = pygame.Surface((300, 300), pygame.SRCALPHA)
-        
-        # Рисуем палитру цветов (спектр HSV)
-        for y in range(300):
-            for x in range(300):
-                hue = x / 300
-                saturation = 1.0
-                value = 1.0 - (y / 300)
-                
-                color = self.hsv_to_rgb(hue, saturation, value)
-                color_int = [int(c * 255) for c in color]
-                
-                palette_surface.set_at((x, y), color_int)
-        
-        # Рамка палитры
-        pygame.draw.rect(palette_surface, (255, 255, 255), (0, 0, 300, 300), 2)
-        
-        # Конвертируем поверхность в текстуру OpenGL
-        palette_data = pygame.image.tostring(palette_surface, "RGBA", True)
-        
-        glEnable(GL_TEXTURE_2D)
-        palette_texture = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_2D, palette_texture)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 300, 300, 0, GL_RGBA, GL_UNSIGNED_BYTE, palette_data)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        
         # Сохраняем атрибуты OpenGL
         glPushAttrib(GL_ALL_ATTRIB_BITS)
         
@@ -624,42 +636,63 @@ class GraphicsEditor:
         glVertex2f(0, self.height)
         glEnd()
         
-        # Сама палитра
+        # Сама палитра (ПРАВИЛЬНО ПЕРЕВЕРНУТАЯ)
+        glEnable(GL_TEXTURE_2D)
+        glBindTexture(GL_TEXTURE_2D, self.palette_texture)
         glColor4f(1, 1, 1, 1)
         x_pos = self.width // 2 - 150
         y_pos = self.height // 2 - 150
         glBegin(GL_QUADS)
-        glTexCoord2f(0, 0); glVertex2f(x_pos, y_pos)
-        glTexCoord2f(1, 0); glVertex2f(x_pos + 300, y_pos)
-        glTexCoord2f(1, 1); glVertex2f(x_pos + 300, y_pos + 300)
-        glTexCoord2f(0, 1); glVertex2f(x_pos, y_pos + 300)
+        glTexCoord2f(0, 1); glVertex2f(x_pos, y_pos)  # Изменены текстурные координаты
+        glTexCoord2f(1, 1); glVertex2f(x_pos + 300, y_pos)
+        glTexCoord2f(1, 0); glVertex2f(x_pos + 300, y_pos + 300)
+        glTexCoord2f(0, 0); glVertex2f(x_pos, y_pos + 300)
+        glEnd()
+        glDisable(GL_TEXTURE_2D)
+        
+        # Кнопка закрытия
+        close_button_x = x_pos + 320
+        close_button_y = y_pos
+        close_button_size = 30
+        
+        # Определяем цвет кнопки закрытия в зависимости от типа выбора цвета
+        if self.color_picker_type == 'background':
+            button_color = self.background_color
+        elif self.color_picker_type == 'cone':
+            button_color = self.cone_color
+        else:  # primitive
+            button_color = self.current_primitive_color
+        
+        # Рисуем кнопку закрытия с текущим цветом
+        glColor4f(*button_color)
+        glBegin(GL_QUADS)
+        glVertex2f(close_button_x, close_button_y)
+        glVertex2f(close_button_x + close_button_size, close_button_y)
+        glVertex2f(close_button_x + close_button_size, close_button_y + close_button_size)
+        glVertex2f(close_button_x, close_button_y + close_button_size)
         glEnd()
         
-        # Подпись
-        text_surface = pygame.Surface((300, 30), pygame.SRCALPHA)
-        text_surface.fill((0, 0, 0, 0))
+        # Рамка кнопки закрытия
+        glColor4f(1, 1, 1, 1)
+        glLineWidth(2.0)
+        glBegin(GL_LINE_LOOP)
+        glVertex2f(close_button_x, close_button_y)
+        glVertex2f(close_button_x + close_button_size, close_button_y)
+        glVertex2f(close_button_x + close_button_size, close_button_y + close_button_size)
+        glVertex2f(close_button_x, close_button_y + close_button_size)
+        glEnd()
         
-        if self.color_picker_type == 'background':
-            text = self.font.render("Выберите цвет фона", True, (255, 255, 255))
-        elif self.color_picker_type == 'cone':
-            text = self.font.render("Выберите цвет конуса", True, (255, 255, 255))
-        else:  # primitive
-            text = self.font.render("Выберите цвет фигур", True, (255, 255, 255))
-        
-        text_rect = text.get_rect(center=(150, 15))
-        text_surface.blit(text, text_rect)
-        
-        # Конвертируем текст в текстуру
-        text_data = pygame.image.tostring(text_surface, "RGBA", True)
-        glBindTexture(GL_TEXTURE_2D, palette_texture)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 300, 30, 0, GL_RGBA, GL_UNSIGNED_BYTE, text_data)
-        
-        # Рисуем текст
-        glBegin(GL_QUADS)
-        glTexCoord2f(0, 0); glVertex2f(x_pos, y_pos + 310)
-        glTexCoord2f(1, 0); glVertex2f(x_pos + 300, y_pos + 310)
-        glTexCoord2f(1, 1); glVertex2f(x_pos + 300, y_pos + 340)
-        glTexCoord2f(0, 1); glVertex2f(x_pos, y_pos + 340)
+        # Рисуем крестик на кнопке закрытия
+        cross_margin = 8  # Отступ от краев кнопки
+        glColor4f(1, 1, 1, 1)  # Белый цвет крестика
+        glLineWidth(2.0)
+        glBegin(GL_LINES)
+        # Первая диагональ крестика
+        glVertex2f(close_button_x + cross_margin, close_button_y + cross_margin)
+        glVertex2f(close_button_x + close_button_size - cross_margin, close_button_y + close_button_size - cross_margin)
+        # Вторая диагональ крестика
+        glVertex2f(close_button_x + close_button_size - cross_margin, close_button_y + cross_margin)
+        glVertex2f(close_button_x + cross_margin, close_button_y + close_button_size - cross_margin)
         glEnd()
         
         glDisable(GL_BLEND)
@@ -668,8 +701,6 @@ class GraphicsEditor:
         glPopMatrix()
         glMatrixMode(GL_MODELVIEW)
         glPopMatrix()
-        glDisable(GL_TEXTURE_2D)
-        glDeleteTextures([palette_texture])
         
         # Восстанавливаем атрибуты OpenGL
         glPopAttrib()
