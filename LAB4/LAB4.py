@@ -13,7 +13,8 @@ class GraphicsEditor:
         self.line_style = 0xFFFF  # Сплошная линия по умолчанию
         self.line_stipple_factor = 1
         self.drawing_mode = None
-        self.points = []
+        self.primitives = []  # Список всех примитивов
+        self.light_sources = []  # Список источников света
         self.scale = 1.0
         self.cone_rotation = [0, 0, 0]
         self.render_modes = [GL_FILL, GL_LINE, GL_POINT]
@@ -26,6 +27,13 @@ class GraphicsEditor:
         self.last_mouse_pos = None
         self.is_rotating = False
         
+        # Переменные для ввода координат
+        self.input_active = False
+        self.input_text = ""
+        self.input_prompt = ""
+        self.input_type = None  # 'primitive' или 'light'
+        self.input_coords = []
+        
         # Инициализация интерфейса
         pygame.init()
         self.screen = pygame.display.set_mode((self.width, self.height), pygame.DOUBLEBUF | pygame.OPENGL)
@@ -33,6 +41,7 @@ class GraphicsEditor:
         
         # Шрифт для текста (поддерживающий кириллицу)
         self.font = pygame.font.SysFont('Arial', 14)
+        self.input_font = pygame.font.SysFont('Arial', 16)
         
         # Настройка OpenGL
         glEnable(GL_DEPTH_TEST)
@@ -47,11 +56,24 @@ class GraphicsEditor:
     def setup_lighting(self):
         """Настройка освещения"""
         glEnable(GL_LIGHTING)
+        
+        # Базовый источник света
         glEnable(GL_LIGHT0)
         glLightfv(GL_LIGHT0, GL_POSITION, [2.0, 2.0, 2.0, 1.0])
         glLightfv(GL_LIGHT0, GL_AMBIENT, [0.2, 0.2, 0.2, 1.0])
         glLightfv(GL_LIGHT0, GL_DIFFUSE, [0.8, 0.8, 0.8, 1.0])
         glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
+        
+        # Дополнительные источники света
+        light_ids = [GL_LIGHT1, GL_LIGHT2, GL_LIGHT3, GL_LIGHT4, GL_LIGHT5, GL_LIGHT6, GL_LIGHT7]
+        for i, light_pos in enumerate(self.light_sources):
+            if i < len(light_ids):
+                glEnable(light_ids[i])
+                glLightfv(light_ids[i], GL_POSITION, light_pos + [1.0])
+                glLightfv(light_ids[i], GL_AMBIENT, [0.1, 0.1, 0.1, 1.0])
+                glLightfv(light_ids[i], GL_DIFFUSE, [0.7, 0.7, 0.7, 1.0])
+                glLightfv(light_ids[i], GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
+        
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE)
 
@@ -81,10 +103,10 @@ class GraphicsEditor:
             {"rect": pygame.Rect(10, 50, 180, 30), "text": "Цвет объектов", "action": "obj_color"},
             {"rect": pygame.Rect(10, 90, 180, 30), "text": "Толщина линии +", "action": "line_width_up"},
             {"rect": pygame.Rect(10, 130, 180, 30), "text": "Толщина линии -", "action": "line_width_down"},
-            {"rect": pygame.Rect(10, 170, 180, 30), "text": "Рисовать линию", "action": "draw_line"},
-            {"rect": pygame.Rect(10, 210, 180, 30), "text": "Рисовать треугольник", "action": "draw_triangle"},
-            {"rect": pygame.Rect(10, 250, 180, 30), "text": "Рисовать прямоугольник", "action": "draw_rect"},
-            {"rect": pygame.Rect(10, 290, 180, 30), "text": "Рисовать полигон", "action": "draw_polygon"},
+            {"rect": pygame.Rect(10, 170, 180, 30), "text": "Ввести координаты линии", "action": "input_line"},
+            {"rect": pygame.Rect(10, 210, 180, 30), "text": "Ввести координаты треугольника", "action": "input_triangle"},
+            {"rect": pygame.Rect(10, 250, 180, 30), "text": "Ввести координаты прямоугольника", "action": "input_rect"},
+            {"rect": pygame.Rect(10, 290, 180, 30), "text": "Ввести координаты полигона", "action": "input_polygon"},
             {"rect": pygame.Rect(10, 330, 180, 30), "text": "Приблизить", "action": "zoom_in"},
             {"rect": pygame.Rect(10, 370, 180, 30), "text": "Отдалить", "action": "zoom_out"},
             {"rect": pygame.Rect(10, 410, 180, 30), "text": "Сменить режим отрисовки", "action": "change_render_mode"},
@@ -92,8 +114,9 @@ class GraphicsEditor:
             {"rect": pygame.Rect(10, 490, 180, 30), "text": "Пунктирная линия", "action": "dashed_line"},
             {"rect": pygame.Rect(10, 530, 180, 30), "text": "Точечная линия", "action": "dotted_line"},
             {"rect": pygame.Rect(10, 570, 180, 30), "text": "Вкл/Выкл свет", "action": "toggle_light"},
-            {"rect": pygame.Rect(10, 610, 180, 30), "text": "Вращать конус", "action": "rotate_cone"},
-            {"rect": pygame.Rect(10, 650, 180, 30), "text": "Очистить точки", "action": "clear_points"}
+            {"rect": pygame.Rect(10, 610, 180, 30), "text": "Добавить источник света", "action": "add_light"},
+            {"rect": pygame.Rect(10, 650, 180, 30), "text": "Вращать конус", "action": "rotate_cone"},
+            {"rect": pygame.Rect(10, 690, 180, 30), "text": "Очистить объекты", "action": "clear_objects"}
         ]
 
     def handle_events(self):
@@ -124,19 +147,30 @@ class GraphicsEditor:
                     self.camera_rotation_x += dy * 0.5
                     self.last_mouse_pos = event.pos
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_r:
-                    self.cone_rotation = [0, 0, 0]  # Сброс вращения
-                elif event.key == pygame.K_l:
-                    self.light_enabled = not self.light_enabled
-                elif event.key == pygame.K_c:
-                    self.points = []  # Очистка точек
-                elif event.key == pygame.K_SPACE:
-                    # Сброс камеры
-                    self.camera_rotation_x = 0
-                    self.camera_rotation_y = 0
-                    self.camera_distance = -5
-                elif event.key == pygame.K_m:
-                    self.change_render_mode()  # Смена режима отрисовки по клавише M
+                if self.input_active:
+                    if event.key == pygame.K_RETURN:
+                        self.process_input()
+                    elif event.key == pygame.K_ESCAPE:
+                        self.input_active = False
+                        self.input_text = ""
+                    elif event.key == pygame.K_BACKSPACE:
+                        self.input_text = self.input_text[:-1]
+                    else:
+                        self.input_text += event.unicode
+                else:
+                    if event.key == pygame.K_r:
+                        self.cone_rotation = [0, 0, 0]  # Сброс вращения
+                    elif event.key == pygame.K_l:
+                        self.light_enabled = not self.light_enabled
+                    elif event.key == pygame.K_c:
+                        self.clear_objects()
+                    elif event.key == pygame.K_SPACE:
+                        # Сброс камеры
+                        self.camera_rotation_x = 0
+                        self.camera_rotation_y = 0
+                        self.camera_distance = -5
+                    elif event.key == pygame.K_m:
+                        self.change_render_mode()  # Смена режима отрисовки по клавише M
         return True
 
     def handle_click(self, pos):
@@ -145,14 +179,6 @@ class GraphicsEditor:
             if button["rect"].collidepoint(pos):
                 self.execute_action(button["action"])
                 return
-        
-        # Если клик не по кнопке, добавляем точку для рисования
-        if self.drawing_mode and self.drawing_mode.startswith("draw_"):
-            # Преобразование координат экрана в координаты OpenGL
-            x = (pos[0] - self.width / 2) / (self.width / 2) * 3
-            y = -(pos[1] - self.height / 2) / (self.height / 2) * 2
-            self.points.append((x, y))
-            print(f"Добавлена точка: ({x:.2f}, {y:.2f}), всего точек: {len(self.points)}")
 
     def execute_action(self, action):
         """Выполнение действий интерфейса"""
@@ -168,10 +194,14 @@ class GraphicsEditor:
         elif action == "line_width_down":
             self.line_width = max(0.5, self.line_width - 0.5)
             print(f"Толщина линии: {self.line_width}")
-        elif action.startswith("draw_"):
-            self.drawing_mode = action
-            self.points = []
-            print(f"Режим рисования: {action}, кликните на экране для добавления точек")
+        elif action == "input_line":
+            self.start_input("Введите координаты линии (x1,y1,x2,y2):", "line")
+        elif action == "input_triangle":
+            self.start_input("Введите координаты треугольника (x1,y1,x2,y2,x3,y3):", "triangle")
+        elif action == "input_rect":
+            self.start_input("Введите координаты прямоугольника (x1,y1,x2,y2):", "rectangle")
+        elif action == "input_polygon":
+            self.start_input("Введите координаты полигона (x1,y1,x2,y2,...):", "polygon")
         elif action == "zoom_in":
             self.camera_distance = min(-1, self.camera_distance + 0.5)
             print(f"Масштаб: {self.camera_distance}")
@@ -195,12 +225,59 @@ class GraphicsEditor:
         elif action == "toggle_light":
             self.light_enabled = not self.light_enabled
             print(f"Освещение: {'ВКЛ' if self.light_enabled else 'ВЫКЛ'}")
+        elif action == "add_light":
+            self.start_input("Введите координаты источника света (x,y,z):", "light")
         elif action == "rotate_cone":
             self.cone_rotation[1] += 15  # Вращение вокруг оси Y
             print(f"Вращение конуса: {self.cone_rotation}")
-        elif action == "clear_points":
-            self.points = []
-            print("Очищены все точки")
+        elif action == "clear_objects":
+            self.clear_objects()
+
+    def start_input(self, prompt, input_type):
+        """Начинает ввод координат"""
+        self.input_active = True
+        self.input_text = ""
+        self.input_prompt = prompt
+        self.input_type = input_type
+        print(prompt)
+
+    def process_input(self):
+        """Обрабатывает введенные координаты"""
+        try:
+            coords = [float(x.strip()) for x in self.input_text.split(',')]
+            
+            if self.input_type == "line" and len(coords) == 4:
+                self.primitives.append({"type": "line", "coords": coords})
+                print("Линия добавлена")
+            elif self.input_type == "triangle" and len(coords) == 6:
+                self.primitives.append({"type": "triangle", "coords": coords})
+                print("Треугольник добавлен")
+            elif self.input_type == "rectangle" and len(coords) == 4:
+                self.primitives.append({"type": "rectangle", "coords": coords})
+                print("Прямоугольник добавлен")
+            elif self.input_type == "polygon" and len(coords) >= 6 and len(coords) % 2 == 0:
+                self.primitives.append({"type": "polygon", "coords": coords})
+                print("Полигон добавлен")
+            elif self.input_type == "light" and len(coords) == 3:
+                self.light_sources.append(coords)
+                self.setup_lighting()  # Обновляем освещение
+                print(f"Источник света добавлен в позиции {coords}")
+            else:
+                print("Ошибка: неверное количество координат")
+                return
+                
+            self.input_active = False
+            self.input_text = ""
+            
+        except ValueError:
+            print("Ошибка: неверный формат координат")
+
+    def clear_objects(self):
+        """Очищает все объекты, кроме конуса"""
+        self.primitives = []
+        self.light_sources = []
+        self.setup_lighting()  # Обновляем освещение
+        print("Все объекты очищены")
 
     def change_render_mode(self):
         """Циклическое переключение режимов отрисовки"""
@@ -272,9 +349,9 @@ class GraphicsEditor:
         glDisable(GL_TEXTURE_2D)
         glPopMatrix()
 
-    def draw_primitive(self):
-        """Рисование выбранного примитива с учетом текущего режима отрисовки"""
-        if len(self.points) < 2:
+    def draw_primitives(self):
+        """Рисование всех примитивов с учетом текущего режима отрисовки"""
+        if not self.primitives:
             return
         
         # Сохраняем текущий режим полигона
@@ -283,58 +360,40 @@ class GraphicsEditor:
         glColor4f(*self.object_color)
         glDisable(GL_LIGHTING)  # Отключаем освещение для 2D примитивов
         
-        # Применяем текущий режим отрисовки к 2D примитивам
+        # Применяем текущий режим отрисовки к примитивам
         self.apply_render_mode()
         
-        # Определяем, как рисовать примитивы в зависимости от режима
-        if self.drawing_mode == "draw_line" and len(self.points) >= 2:
-            # Для линий всегда используем GL_LINES
-            glBegin(GL_LINES)
-            for i in range(0, len(self.points), 2):
-                if i+1 < len(self.points):
-                    x1, y1 = self.points[i]
-                    x2, y2 = self.points[i+1]
-                    glVertex3f(x1, y1, 0)
-                    glVertex3f(x2, y2, 0)
-            glEnd()
+        # Рисуем все примитивы
+        for primitive in self.primitives:
+            coords = primitive["coords"]
             
-        elif self.drawing_mode == "draw_triangle" and len(self.points) >= 3:
-            # Для треугольников используем GL_TRIANGLES, который будет отображаться в текущем режиме
-            glBegin(GL_TRIANGLES)
-            for i in range(0, len(self.points), 3):
-                if i+2 < len(self.points):
-                    for j in range(3):
-                        x, y = self.points[i+j]
-                        glVertex3f(x, y, 0)
-            glEnd()
-            
-        elif self.drawing_mode == "draw_rect" and len(self.points) >= 2:
-            # Для прямоугольников используем GL_QUADS, который будет отображаться в текущем режиме
-            for i in range(0, len(self.points), 2):
-                if i+1 < len(self.points):
-                    x1, y1 = self.points[i]
-                    x2, y2 = self.points[i+1]
-                    glBegin(GL_QUADS)
-                    glVertex3f(x1, y1, 0)
-                    glVertex3f(x2, y1, 0)
-                    glVertex3f(x2, y2, 0)
-                    glVertex3f(x1, y2, 0)
-                    glEnd()
-            
-        elif self.drawing_mode == "draw_polygon" and len(self.points) > 2:
-            # Для полигонов используем GL_POLYGON, который будет отображаться в текущем режиме
-            glBegin(GL_POLYGON)
-            for x, y in self.points:
-                glVertex3f(x, y, 0)
-            glEnd()
-        
-        # Рисуем точки для визуализации (только в режимах заливки и каркаса)
-        if self.render_modes[self.current_render_mode] != GL_POINT:
-            glBegin(GL_POINTS)
-            glColor3f(1.0, 0.0, 0.0)  # Красные точки
-            for x, y in self.points:
-                glVertex3f(x, y, 0)
-            glEnd()
+            if primitive["type"] == "line" and len(coords) == 4:
+                glBegin(GL_LINES)
+                glVertex3f(coords[0], coords[1], 0)
+                glVertex3f(coords[2], coords[3], 0)
+                glEnd()
+                
+            elif primitive["type"] == "triangle" and len(coords) == 6:
+                glBegin(GL_TRIANGLES)
+                glVertex3f(coords[0], coords[1], 0)
+                glVertex3f(coords[2], coords[3], 0)
+                glVertex3f(coords[4], coords[5], 0)
+                glEnd()
+                
+            elif primitive["type"] == "rectangle" and len(coords) == 4:
+                x1, y1, x2, y2 = coords
+                glBegin(GL_QUADS)
+                glVertex3f(x1, y1, 0)
+                glVertex3f(x2, y1, 0)
+                glVertex3f(x2, y2, 0)
+                glVertex3f(x1, y2, 0)
+                glEnd()
+                
+            elif primitive["type"] == "polygon" and len(coords) >= 6:
+                glBegin(GL_POLYGON)
+                for i in range(0, len(coords), 2):
+                    glVertex3f(coords[i], coords[i+1], 0)
+                glEnd()
         
         # Отключаем пунктир, если был включен
         if self.render_modes[self.current_render_mode] == GL_LINE and self.line_style != 0xFFFF:
@@ -345,6 +404,23 @@ class GraphicsEditor:
             
         # Восстанавливаем режим полигона
         glPopAttrib()
+
+    def draw_light_sources(self):
+        """Рисование источников света"""
+        if not self.light_sources:
+            return
+            
+        glDisable(GL_LIGHTING)
+        glColor3f(1.0, 1.0, 0.0)  # Желтый цвет для источников света
+        glPointSize(8.0)
+        
+        glBegin(GL_POINTS)
+        for light_pos in self.light_sources:
+            glVertex3f(light_pos[0], light_pos[1], light_pos[2])
+        glEnd()
+        
+        if self.light_enabled:
+            glEnable(GL_LIGHTING)
 
     def draw_ui(self):
         """Отрисовка интерфейса с помощью PyGame"""
@@ -418,7 +494,8 @@ class GraphicsEditor:
         
         status_text = [
             f"Режим: {mode_names[self.current_render_mode]}",
-            f"Точек: {len(self.points)}",
+            f"Примитивов: {len(self.primitives)}",
+            f"Источников света: {len(self.light_sources)}",
             f"Свет: {'ВКЛ' if self.light_enabled else 'ВЫКЛ'}",
             f"Толщина: {self.line_width}",
             f"Тип линии: {line_style_names.get(self.line_style, 'Сплошная')}"
@@ -437,12 +514,24 @@ class GraphicsEditor:
             "R - сброс вращения конуса",
             "L - переключение света",
             "M - смена режима отрисовки",
-            "C - очистка точек"
+            "C - очистка объектов"
         ]
         
         for i, text in enumerate(instructions):
             text_surf = self.font.render(text, True, (200, 200, 255))
             text_surface.blit(text_surf, (10, self.height - 180 + i * 20))
+        
+        # Отрисовка поля ввода, если активно
+        if self.input_active:
+            input_rect = pygame.Rect(200, self.height - 50, self.width - 400, 30)
+            pygame.draw.rect(text_surface, (255, 255, 255), input_rect)
+            pygame.draw.rect(text_surface, (0, 0, 0), input_rect, 2)
+            
+            prompt_text = self.input_font.render(self.input_prompt, True, (255, 255, 255))
+            text_surface.blit(prompt_text, (10, self.height - 80))
+            
+            input_text = self.input_font.render(self.input_text, True, (0, 0, 0))
+            text_surface.blit(input_text, (input_rect.x + 5, input_rect.y + 5))
         
         # Конвертируем поверхность PyGame в текстуру OpenGL
         # Переворачиваем поверхность, чтобы исправить перевернутый текст
@@ -500,14 +589,13 @@ class GraphicsEditor:
         print("3D Graphics Editor Started!")
         print("Controls:")
         print("- Click buttons on the left for actions")
-        print("- Click on screen to add points for drawing")
         print("- Left mouse button + drag: Rotate camera")
         print("- Mouse wheel: Zoom in/out")
         print("- Space: Reset camera")
         print("- R key: Reset cone rotation")
         print("- L key: Toggle lighting")
         print("- M key: Change render mode")
-        print("- C key: Clear points")
+        print("- C key: Clear objects")
         
         while running:
             running = self.handle_events()
@@ -521,7 +609,8 @@ class GraphicsEditor:
             
             # Отрисовка объектов
             self.draw_cone()
-            self.draw_primitive()
+            self.draw_primitives()
+            self.draw_light_sources()
             self.draw_ui()
             
             pygame.display.flip()
