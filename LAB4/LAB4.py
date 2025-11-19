@@ -37,7 +37,9 @@ class GraphicsEditor:
         
         # Переменные для выбора цвета
         self.color_picker_active = False
-        self.color_picker_type = None  # 'background', 'cone', 'primitive'
+        self.color_picker_type = None  # 'background', 'cone', 'primitive', 'input_color'
+        self.temp_selected_color = None  # Временный цвет для отложенного применения
+        self.pending_primitive_type = None  # Тип примитива, для которого выбирается цвет
         
         # Кэшированные текстуры для оптимизации
         self.palette_texture = None
@@ -147,7 +149,7 @@ class GraphicsEditor:
             {"rect": pygame.Rect(10, 210, 180, 30), "text": "Ввести координаты линии", "action": "input_line"},
             {"rect": pygame.Rect(10, 250, 180, 30), "text": "Ввести координаты треугольника", "action": "input_triangle"},
             {"rect": pygame.Rect(10, 290, 180, 30), "text": "Ввести координаты прямоугольника", "action": "input_rect"},
-            {"rect": pygame.Rect(10, 330, 180, 30), "text": "Ввести координаты полигона", "action": "input_polygon"},
+            {"rect": pygame.Rect(10, 330, 180, 30), "text": "Ввести координаты многоугольника", "action": "input_polygon"},  # Изменено на "многоугольника"
             {"rect": pygame.Rect(10, 370, 180, 30), "text": "Приблизить", "action": "zoom_in"},
             {"rect": pygame.Rect(10, 410, 180, 30), "text": "Отдалить", "action": "zoom_out"},
             {"rect": pygame.Rect(10, 450, 180, 30), "text": "Сменить режим отрисовки", "action": "change_render_mode"},
@@ -227,7 +229,7 @@ class GraphicsEditor:
     def handle_color_picker_click(self, pos):
         """Обработка кликов в палитре цветов"""
         palette_rect = pygame.Rect(self.width // 2 - 150, self.height // 2 - 150, 300, 300)
-        close_button_rect = pygame.Rect(self.width // 2 + 160, self.height // 2 - 150, 30, 30)  # Квадратная кнопка закрытия
+        action_button_rect = pygame.Rect(self.width // 2 + 160, self.height // 2 - 150, 30, 30)  # Квадратная кнопка действия
         
         # Проверяем, был ли клик в области палитры
         if palette_rect.collidepoint(pos):
@@ -243,23 +245,34 @@ class GraphicsEditor:
             
             # Преобразуем HSV в RGB
             color = self.hsv_to_rgb(hue, saturation, value)
-            selected_color = color + [1.0]
+            self.temp_selected_color = color + [1.0]
             
-            # Сразу применяем выбранный цвет
-            if self.color_picker_type == 'background':
-                self.background_color = selected_color
-                print(f"Цвет фона изменен на {selected_color}")
-            elif self.color_picker_type == 'cone':
-                self.cone_color = selected_color
-                print(f"Цвет конуса изменен на {selected_color}")
-            elif self.color_picker_type == 'primitive':
-                self.current_primitive_color = selected_color
-                print(f"Цвет фигур изменен на {selected_color}")
+            # Если это режим немедленного применения, применяем цвет сразу
+            if self.color_picker_type in ['background', 'cone', 'primitive']:
+                if self.color_picker_type == 'background':
+                    self.background_color = self.temp_selected_color
+                    print(f"Цвет фона изменен на {self.temp_selected_color}")
+                elif self.color_picker_type == 'cone':
+                    self.cone_color = self.temp_selected_color
+                    print(f"Цвет конуса изменен на {self.temp_selected_color}")
+                elif self.color_picker_type == 'primitive':
+                    self.current_primitive_color = self.temp_selected_color
+                    print(f"Цвет фигур изменен на {self.temp_selected_color}")
             
-        # Проверяем, был ли клик на кнопке закрытия
-        elif close_button_rect.collidepoint(pos):
-            # Закрываем палитру
-            self.color_picker_active = False
+        # Проверяем, был ли клик на кнопке действия
+        elif action_button_rect.collidepoint(pos):
+            if self.color_picker_type == 'input_color':
+                # Применяем временный цвет к текущему цвету фигур
+                if self.temp_selected_color is not None:
+                    self.current_primitive_color = self.temp_selected_color.copy()
+                    print(f"Цвет для {self.pending_primitive_type} установлен на {self.current_primitive_color}")
+                
+                # Закрываем палитру и запускаем ввод координат
+                self.color_picker_active = False
+                self.start_input_for_primitive()
+            else:
+                # Для других режимов просто закрываем палитру
+                self.color_picker_active = False
 
     def hsv_to_rgb(self, h, s, v):
         """Преобразование HSV в RGB"""
@@ -292,29 +305,48 @@ class GraphicsEditor:
         if action == "bg_color":
             self.color_picker_active = True
             self.color_picker_type = 'background'
+            self.temp_selected_color = self.background_color.copy()
             print("Выберите цвет фона из палитры")
         elif action == "cone_color":
             self.color_picker_active = True
             self.color_picker_type = 'cone'
+            self.temp_selected_color = self.cone_color.copy()
             print("Выберите цвет конуса из палитры")
         elif action == "primitive_color":
             self.color_picker_active = True
             self.color_picker_type = 'primitive'
+            self.temp_selected_color = self.current_primitive_color.copy()
             print("Выберите цвет фигур из палитры")
+        elif action == "input_line":
+            self.pending_primitive_type = "line"
+            self.color_picker_active = True
+            self.color_picker_type = 'input_color'
+            self.temp_selected_color = self.current_primitive_color.copy()
+            print("Выберите цвет для линии")
+        elif action == "input_triangle":
+            self.pending_primitive_type = "triangle"
+            self.color_picker_active = True
+            self.color_picker_type = 'input_color'
+            self.temp_selected_color = self.current_primitive_color.copy()
+            print("Выберите цвет для треугольника")
+        elif action == "input_rect":
+            self.pending_primitive_type = "rectangle"
+            self.color_picker_active = True
+            self.color_picker_type = 'input_color'
+            self.temp_selected_color = self.current_primitive_color.copy()
+            print("Выберите цвет для прямоугольника")
+        elif action == "input_polygon":
+            self.pending_primitive_type = "polygon"
+            self.color_picker_active = True
+            self.color_picker_type = 'input_color'
+            self.temp_selected_color = self.current_primitive_color.copy()
+            print("Выберите цвет для многоугольника")
         elif action == "line_width_up":
             self.line_width = min(10.0, self.line_width + 0.5)
             print(f"Толщина линии: {self.line_width}")
         elif action == "line_width_down":
             self.line_width = max(0.5, self.line_width - 0.5)
             print(f"Толщина линии: {self.line_width}")
-        elif action == "input_line":
-            self.start_input("Введите координаты линии (x1,y1,z1,x2,y2,z2):", "line")
-        elif action == "input_triangle":
-            self.start_input("Введите координаты треугольника (x1,y1,z1,x2,y2,z2,x3,y3,z3):", "triangle")
-        elif action == "input_rect":
-            self.start_input("Введите координаты прямоугольника (x1,y1,z1,x2,y2,z2):", "rectangle")
-        elif action == "input_polygon":
-            self.start_input("Введите координаты полигона (x1,y1,z1,x2,y2,z2,...):", "polygon")
         elif action == "zoom_in":
             self.camera_distance = min(-1, self.camera_distance + 0.5)
             print(f"Масштаб: {self.camera_distance}")
@@ -345,6 +377,18 @@ class GraphicsEditor:
             print(f"Вращение конуса: {self.cone_rotation}")
         elif action == "clear_objects":
             self.clear_objects()
+
+    def start_input_for_primitive(self):
+        """Запускает ввод координат для выбранного примитива"""
+        prompts = {
+            "line": "Введите координаты линии (x1,y1,z1,x2,y2,z2):",
+            "triangle": "Введите координаты треугольника (x1,y1,z1,x2,y2,z2,x3,y3,z3):",
+            "rectangle": "Введите координаты прямоугольника (x1,y1,z1,x2,y2,z2):",
+            "polygon": "Введите координаты многоугольника (x1,y1,z1,x2,y2,z2,...):"
+        }
+        
+        if self.pending_primitive_type in prompts:
+            self.start_input(prompts[self.pending_primitive_type], self.pending_primitive_type)
 
     def start_input(self, prompt, input_type):
         """Начинает ввод координат"""
@@ -386,7 +430,7 @@ class GraphicsEditor:
                     "coords": coords,
                     "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
                 })
-                print("Полигон добавлен")
+                print("Многоугольник добавлен")
             elif self.input_type == "light" and len(coords) == 3:
                 self.light_sources.append(coords)
                 self.setup_lighting()  # Обновляем освещение
@@ -650,50 +694,66 @@ class GraphicsEditor:
         glEnd()
         glDisable(GL_TEXTURE_2D)
         
-        # Кнопка закрытия
-        close_button_x = x_pos + 320
-        close_button_y = y_pos
-        close_button_size = 30
+        # Кнопка действия
+        action_button_x = x_pos + 320
+        action_button_y = y_pos
+        action_button_size = 30
         
-        # Определяем цвет кнопки закрытия в зависимости от типа выбора цвета
-        if self.color_picker_type == 'background':
+        # Определяем цвет кнопки действия
+        if self.temp_selected_color is not None:
+            button_color = self.temp_selected_color
+        elif self.color_picker_type == 'background':
             button_color = self.background_color
         elif self.color_picker_type == 'cone':
             button_color = self.cone_color
-        else:  # primitive
+        else:  # primitive или input_color
             button_color = self.current_primitive_color
         
-        # Рисуем кнопку закрытия с текущим цветом
+        # Рисуем кнопку действия с текущим цветом
         glColor4f(*button_color)
         glBegin(GL_QUADS)
-        glVertex2f(close_button_x, close_button_y)
-        glVertex2f(close_button_x + close_button_size, close_button_y)
-        glVertex2f(close_button_x + close_button_size, close_button_y + close_button_size)
-        glVertex2f(close_button_x, close_button_y + close_button_size)
+        glVertex2f(action_button_x, action_button_y)
+        glVertex2f(action_button_x + action_button_size, action_button_y)
+        glVertex2f(action_button_x + action_button_size, action_button_y + action_button_size)
+        glVertex2f(action_button_x, action_button_y + action_button_size)
         glEnd()
         
-        # Рамка кнопки закрытия
+        # Рамка кнопки действия
         glColor4f(1, 1, 1, 1)
         glLineWidth(2.0)
         glBegin(GL_LINE_LOOP)
-        glVertex2f(close_button_x, close_button_y)
-        glVertex2f(close_button_x + close_button_size, close_button_y)
-        glVertex2f(close_button_x + close_button_size, close_button_y + close_button_size)
-        glVertex2f(close_button_x, close_button_y + close_button_size)
+        glVertex2f(action_button_x, action_button_y)
+        glVertex2f(action_button_x + action_button_size, action_button_y)
+        glVertex2f(action_button_x + action_button_size, action_button_y + action_button_size)
+        glVertex2f(action_button_x, action_button_y + action_button_size)
         glEnd()
         
-        # Рисуем крестик на кнопке закрытия
-        cross_margin = 8  # Отступ от краев кнопки
-        glColor4f(1, 1, 1, 1)  # Белый цвет крестика
-        glLineWidth(2.0)
-        glBegin(GL_LINES)
-        # Первая диагональ крестика
-        glVertex2f(close_button_x + cross_margin, close_button_y + cross_margin)
-        glVertex2f(close_button_x + close_button_size - cross_margin, close_button_y + close_button_size - cross_margin)
-        # Вторая диагональ крестика
-        glVertex2f(close_button_x + close_button_size - cross_margin, close_button_y + cross_margin)
-        glVertex2f(close_button_x + cross_margin, close_button_y + close_button_size - cross_margin)
-        glEnd()
+        # Рисуем символ на кнопке действия
+        symbol_margin = 8  # Отступ от краев кнопки
+        glColor4f(1, 1, 1, 1)  # Белый цвет символа
+        
+        if self.color_picker_type == 'input_color':
+            # Для режима ввода цвета рисуем галочку
+            glLineWidth(2.0)
+            glBegin(GL_LINES)
+            # Первая часть галочки
+            glVertex2f(action_button_x + symbol_margin, action_button_y + action_button_size // 2)
+            glVertex2f(action_button_x + action_button_size // 2, action_button_y + action_button_size - symbol_margin)
+            # Вторая часть галочки
+            glVertex2f(action_button_x + action_button_size // 2, action_button_y + action_button_size - symbol_margin)
+            glVertex2f(action_button_x + action_button_size - symbol_margin, action_button_y + symbol_margin)
+            glEnd()
+        else:
+            # Для других режимов рисуем крестик
+            glLineWidth(2.0)
+            glBegin(GL_LINES)
+            # Первая диагональ крестика
+            glVertex2f(action_button_x + symbol_margin, action_button_y + symbol_margin)
+            glVertex2f(action_button_x + action_button_size - symbol_margin, action_button_y + action_button_size - symbol_margin)
+            # Вторая диагональ крестика
+            glVertex2f(action_button_x + action_button_size - symbol_margin, action_button_y + symbol_margin)
+            glVertex2f(action_button_x + symbol_margin, action_button_y + action_button_size - symbol_margin)
+            glEnd()
         
         glDisable(GL_BLEND)
         glEnable(GL_DEPTH_TEST)
