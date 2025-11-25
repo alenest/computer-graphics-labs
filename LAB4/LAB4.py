@@ -63,6 +63,7 @@ class GraphicsEditor:
         # Шрифт для текста (поддерживающий кириллицу)
         self.font = pygame.font.SysFont('Arial', 14)
         self.input_font = pygame.font.SysFont('Arial', 16)
+        self.title_font = pygame.font.SysFont('Arial', 16, bold=True)
         
         # Настройка OpenGL
         glEnable(GL_DEPTH_TEST)
@@ -219,38 +220,76 @@ class GraphicsEditor:
             return False
 
     def setup_ui(self):
-        """Создание элементов интерфейса"""
-        # Основные кнопки слева
-        self.buttons = [
-            {"rect": pygame.Rect(10, 10, 180, 30), "text": "Цвет фона", "action": "bg_color"},
-            {"rect": pygame.Rect(10, 50, 180, 30), "text": "Цвет фигур", "action": "primitive_color"},
-            {"rect": pygame.Rect(10, 90, 180, 30), "text": "Толщина линии +", "action": "line_width_up"},
-            {"rect": pygame.Rect(10, 130, 180, 30), "text": "Толщина линии -", "action": "line_width_down"},
-            {"rect": pygame.Rect(10, 170, 180, 30), "text": "Ввести координаты линии", "action": "input_line"},
-            {"rect": pygame.Rect(10, 210, 180, 30), "text": "Ввести координаты треугольника", "action": "input_triangle"},
-            {"rect": pygame.Rect(10, 250, 180, 30), "text": "Ввести координаты прямоугольника", "action": "input_rect"},
-            {"rect": pygame.Rect(10, 290, 180, 30), "text": "Ввести координаты многоугольника", "action": "input_polygon"},
-            {"rect": pygame.Rect(10, 330, 180, 30), "text": "Приблизить", "action": "zoom_in"},
-            {"rect": pygame.Rect(10, 370, 180, 30), "text": "Отдалить", "action": "zoom_out"},
-            {"rect": pygame.Rect(10, 410, 180, 30), "text": "Сменить режим отрисовки", "action": "change_render_mode"},
-            {"rect": pygame.Rect(10, 450, 180, 30), "text": "Сплошная линия", "action": "solid_line"},
-            {"rect": pygame.Rect(10, 490, 180, 30), "text": "Пунктирная линия", "action": "dashed_line"},
-            {"rect": pygame.Rect(10, 530, 180, 30), "text": "Точечная линия", "action": "dotted_line"},
-            {"rect": pygame.Rect(10, 570, 180, 30), "text": "Вкл/Выкл свет", "action": "toggle_light"},
-            {"rect": pygame.Rect(10, 610, 180, 30), "text": "Добавить источник света", "action": "add_light"},
-            {"rect": pygame.Rect(10, 650, 180, 30), "text": "Вращать конус", "action": "rotate_cone"},
-            {"rect": pygame.Rect(10, 690, 180, 30), "text": "Очистить объекты", "action": "clear_objects"},
+        """Создание элементов интерфейса - ПОЛНОСТЬЮ ПЕРЕРАБОТАННОЕ"""
+        # Увеличиваем ширину кнопок для лучшего отображения текста
+        button_width = 200
+        button_height = 30
+        button_margin = 10
+        section_margin = 20
+        
+        # Начальные координаты для разных секций
+        left_x = 10
+        center_x = 220
+        right_x = 430
+        far_right_x = 640
+        
+        y_start = 10
+        
+        # СЕКЦИЯ 1: Управление сценой (левая колонка)
+        scene_y = y_start
+        self.scene_buttons = [
+            {"rect": pygame.Rect(left_x, scene_y, button_width, button_height), "text": "Цвет фона", "action": "bg_color"},
+            {"rect": pygame.Rect(left_x, scene_y + button_height + button_margin, button_width, button_height), "text": "Приблизить", "action": "zoom_in"},
+            {"rect": pygame.Rect(left_x, scene_y + 2*(button_height + button_margin), button_width, button_height), "text": "Отдалить", "action": "zoom_out"},
+            {"rect": pygame.Rect(left_x, scene_y + 3*(button_height + button_margin), button_width, button_height), "text": "Сброс камеры", "action": "reset_camera"},
+            {"rect": pygame.Rect(left_x, scene_y + 4*(button_height + button_margin), button_width, button_height), "text": "Очистить объекты", "action": "clear_objects"},
         ]
         
-        # Кнопки текстур и цвета конуса справа
-        self.texture_buttons = [
-            {"rect": pygame.Rect(self.width - 190, 10, 180, 30), "text": "Цвет конуса", "action": "cone_color"},
-            {"rect": pygame.Rect(self.width - 190, 50, 180, 30), "text": "Шахматная текстура конуса", "action": "cone_checker_texture"},
-            {"rect": pygame.Rect(self.width - 190, 90, 180, 30), "text": "Пользовательская текстура конуса", "action": "cone_custom_texture"},
-            {"rect": pygame.Rect(self.width - 190, 130, 180, 30), "text": "Загрузить текстуру", "action": "load_texture"},
-            {"rect": pygame.Rect(self.width - 190, 170, 180, 30), "text": "Увеличить интенсивность света", "action": "increase_light_intensity"},
-            {"rect": pygame.Rect(self.width - 190, 210, 180, 30), "text": "Уменьшить интенсивность света", "action": "decrease_light_intensity"}
+        # СЕКЦИЯ 2: Примитивы (центральная левая колонка)
+        primitives_y = y_start
+        self.primitives_buttons = [
+            {"rect": pygame.Rect(center_x, primitives_y, button_width, button_height), "text": "Цвет фигур", "action": "primitive_color"},
+            {"rect": pygame.Rect(center_x, primitives_y + button_height + button_margin, button_width, button_height), "text": "Ввести координаты линии", "action": "input_line"},
+            {"rect": pygame.Rect(center_x, primitives_y + 2*(button_height + button_margin), button_width, button_height), "text": "Ввести координаты треугольника", "action": "input_triangle"},
+            {"rect": pygame.Rect(center_x, primitives_y + 3*(button_height + button_margin), button_width, button_height), "text": "Ввести координаты прямоугольника", "action": "input_rect"},
+            {"rect": pygame.Rect(center_x, primitives_y + 4*(button_height + button_margin), button_width, button_height), "text": "Ввести координаты многоугольника", "action": "input_polygon"},
         ]
+        
+        # СЕКЦИЯ 3: Настройки отрисовки (центральная правая колонка)
+        rendering_y = y_start
+        self.rendering_buttons = [
+            {"rect": pygame.Rect(right_x, rendering_y, button_width, button_height), "text": "Толщина линии +", "action": "line_width_up"},
+            {"rect": pygame.Rect(right_x, rendering_y + button_height + button_margin, button_width, button_height), "text": "Толщина линии -", "action": "line_width_down"},
+            {"rect": pygame.Rect(right_x, rendering_y + 2*(button_height + button_margin), button_width, button_height), "text": "Сплошная линия", "action": "solid_line"},
+            {"rect": pygame.Rect(right_x, rendering_y + 3*(button_height + button_margin), button_width, button_height), "text": "Пунктирная линия", "action": "dashed_line"},
+            {"rect": pygame.Rect(right_x, rendering_y + 4*(button_height + button_margin), button_width, button_height), "text": "Точечная линия", "action": "dotted_line"},
+            {"rect": pygame.Rect(right_x, rendering_y + 5*(button_height + button_margin), button_width, button_height), "text": "Сменить режим отрисовки", "action": "change_render_mode"},
+        ]
+        
+        # СЕКЦИЯ 4: Конус и освещение (правая колонка)
+        cone_light_y = y_start
+        self.cone_light_buttons = [
+            {"rect": pygame.Rect(far_right_x, cone_light_y, button_width, button_height), "text": "Цвет конуса", "action": "cone_color"},
+            {"rect": pygame.Rect(far_right_x, cone_light_y + button_height + button_margin, button_width, button_height), "text": "Шахматная текстура конуса", "action": "cone_checker_texture"},
+            {"rect": pygame.Rect(far_right_x, cone_light_y + 2*(button_height + button_margin), button_width, button_height), "text": "Пользовательская текстура", "action": "cone_custom_texture"},
+            {"rect": pygame.Rect(far_right_x, cone_light_y + 3*(button_height + button_margin), button_width, button_height), "text": "Загрузить текстуру", "action": "load_texture"},
+            {"rect": pygame.Rect(far_right_x, cone_light_y + 4*(button_height + button_margin), button_width, button_height), "text": "Вращать конус", "action": "rotate_cone"},
+            {"rect": pygame.Rect(far_right_x, cone_light_y + 5*(button_height + button_margin), button_width, button_height), "text": "Вкл/Выкл свет", "action": "toggle_light"},
+            {"rect": pygame.Rect(far_right_x, cone_light_y + 6*(button_height + button_margin), button_width, button_height), "text": "Добавить источник света", "action": "add_light"},
+            {"rect": pygame.Rect(far_right_x, cone_light_y + 7*(button_height + button_margin), button_width, button_height), "text": "Увеличить интенсивность света", "action": "increase_light_intensity"},
+            {"rect": pygame.Rect(far_right_x, cone_light_y + 8*(button_height + button_margin), button_width, button_height), "text": "Уменьшить интенсивность света", "action": "decrease_light_intensity"},
+        ]
+        
+        # Объединяем все кнопки для удобства обработки
+        self.all_buttons = (self.scene_buttons + self.primitives_buttons + 
+                           self.rendering_buttons + self.cone_light_buttons)
+        
+        # Определяем области для информационных панелей
+        self.info_panels = {
+            "status": pygame.Rect(self.width - 320, 10, 310, 150),
+            "coords": pygame.Rect(self.width - 320, 170, 310, 120),
+            "controls": pygame.Rect(10, self.height - 230, 400, 220)
+        }
 
     def handle_events(self):
         """Обработка событий"""
@@ -264,7 +303,7 @@ class GraphicsEditor:
                     else:
                         self.handle_click(event.pos)
                         # Начало вращения камеры
-                        if not any(button["rect"].collidepoint(event.pos) for button in self.buttons + self.texture_buttons):
+                        if not any(button["rect"].collidepoint(event.pos) for button in self.all_buttons):
                             self.is_rotating = True
                             self.last_mouse_pos = event.pos
                 elif event.button == 4:  # Колесо мыши вверх
@@ -315,14 +354,8 @@ class GraphicsEditor:
 
     def handle_click(self, pos):
         """Обработка кликов по интерфейсу"""
-        # Проверяем основные кнопки
-        for button in self.buttons:
-            if button["rect"].collidepoint(pos):
-                self.execute_action(button["action"])
-                return
-                
-        # Проверяем кнопки текстур
-        for button in self.texture_buttons:
+        # Проверяем все кнопки
+        for button in self.all_buttons:
             if button["rect"].collidepoint(pos):
                 self.execute_action(button["action"])
                 return
@@ -477,6 +510,11 @@ class GraphicsEditor:
         elif action == "zoom_out":
             self.camera_distance = max(-20, self.camera_distance - 0.5)
             print(f"Масштаб: {self.camera_distance}")
+        elif action == "reset_camera":
+            self.camera_rotation_x = 0
+            self.camera_rotation_y = 0
+            self.camera_distance = -5
+            print("Камера сброшена")
         elif action == "change_render_mode":
             self.change_render_mode()
         elif action == "solid_line":
@@ -963,47 +1001,11 @@ class GraphicsEditor:
         # Принудительно устанавливаем режим заливки для кнопок
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         
-        # Отрисовка основных кнопок слева
-        for button in self.buttons:
-            # Рисуем прямоугольник кнопки
-            glColor3f(0.8, 0.8, 0.8)
-            glBegin(GL_QUADS)
-            glVertex2f(button["rect"].left, button["rect"].top)
-            glVertex2f(button["rect"].right, button["rect"].top)
-            glVertex2f(button["rect"].right, button["rect"].bottom)
-            glVertex2f(button["rect"].left, button["rect"].bottom)
-            glEnd()
-            
-            # Рамка кнопки
-            glColor3f(0.3, 0.3, 0.3)
-            glLineWidth(2.0)
-            glBegin(GL_LINE_LOOP)
-            glVertex2f(button["rect"].left, button["rect"].top)
-            glVertex2f(button["rect"].right, button["rect"].top)
-            glVertex2f(button["rect"].right, button["rect"].bottom)
-            glVertex2f(button["rect"].left, button["rect"].bottom)
-            glEnd()
-        
-        # Отрисовка кнопок текстур справа
-        for button in self.texture_buttons:
-            # Рисуем прямоугольник кнопки
-            glColor3f(0.8, 0.8, 0.8)
-            glBegin(GL_QUADS)
-            glVertex2f(button["rect"].left, button["rect"].top)
-            glVertex2f(button["rect"].right, button["rect"].top)
-            glVertex2f(button["rect"].right, button["rect"].bottom)
-            glVertex2f(button["rect"].left, button["rect"].bottom)
-            glEnd()
-            
-            # Рамка кнопки
-            glColor3f(0.3, 0.3, 0.3)
-            glLineWidth(2.0)
-            glBegin(GL_LINE_LOOP)
-            glVertex2f(button["rect"].left, button["rect"].top)
-            glVertex2f(button["rect"].right, button["rect"].top)
-            glVertex2f(button["rect"].right, button["rect"].bottom)
-            glVertex2f(button["rect"].left, button["rect"].bottom)
-            glEnd()
+        # Отрисовка кнопок по группам с заголовками
+        self.draw_button_group(self.scene_buttons, "Управление сценой", (50, 50, 100))
+        self.draw_button_group(self.primitives_buttons, "Примитивы", (100, 50, 50))
+        self.draw_button_group(self.rendering_buttons, "Настройки отрисовки", (50, 100, 50))
+        self.draw_button_group(self.cone_light_buttons, "Конус и освещение", (100, 50, 100))
         
         # Возвращаемся к 3D режиму
         glEnable(GL_DEPTH_TEST)
@@ -1022,60 +1024,103 @@ class GraphicsEditor:
         if self.color_picker_active:
             self.draw_color_picker()
 
+    def draw_button_group(self, buttons, title, color):
+        """Отрисовка группы кнопок с заголовком"""
+        # Рисуем фон для группы кнопок
+        if buttons:
+            group_rect = buttons[0]["rect"].unionall([b["rect"] for b in buttons])
+            # Расширяем прямоугольник для заголовка
+            group_rect = pygame.Rect(group_rect.left - 5, group_rect.top - 25, 
+                                    group_rect.width + 10, group_rect.height + 30)
+            
+            # Фон группы
+            glColor4f(0.1, 0.1, 0.1, 0.7)
+            glBegin(GL_QUADS)
+            glVertex2f(group_rect.left, group_rect.top)
+            glVertex2f(group_rect.right, group_rect.top)
+            glVertex2f(group_rect.right, group_rect.bottom)
+            glVertex2f(group_rect.left, group_rect.bottom)
+            glEnd()
+            
+            # Рамка группы
+            glColor4f(*[c/255.0 for c in color], 1.0)
+            glLineWidth(2.0)
+            glBegin(GL_LINE_LOOP)
+            glVertex2f(group_rect.left, group_rect.top)
+            glVertex2f(group_rect.right, group_rect.top)
+            glVertex2f(group_rect.right, group_rect.bottom)
+            glVertex2f(group_rect.left, group_rect.bottom)
+            glEnd()
+        
+        # Рисуем кнопки
+        for button in buttons:
+            # Рисуем прямоугольник кнопки с градиентом
+            glBegin(GL_QUADS)
+            glColor4f(0.6, 0.6, 0.6, 1.0)
+            glVertex2f(button["rect"].left, button["rect"].top)
+            glVertex2f(button["rect"].right, button["rect"].top)
+            glColor4f(0.8, 0.8, 0.8, 1.0)
+            glVertex2f(button["rect"].right, button["rect"].bottom)
+            glVertex2f(button["rect"].left, button["rect"].bottom)
+            glEnd()
+            
+            # Рамка кнопки
+            glColor3f(0.3, 0.3, 0.3)
+            glLineWidth(1.5)
+            glBegin(GL_LINE_LOOP)
+            glVertex2f(button["rect"].left, button["rect"].top)
+            glVertex2f(button["rect"].right, button["rect"].top)
+            glVertex2f(button["rect"].right, button["rect"].bottom)
+            glVertex2f(button["rect"].left, button["rect"].bottom)
+            glEnd()
+
     def draw_text_with_pygame(self):
         """Отрисовка текста интерфейса с помощью PyGame - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ВЛИЯНИЯ ОСВЕЩЕНИЯ"""
         # Создаем поверхность для текста
         text_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         text_surface.fill((0, 0, 0, 0))  # Прозрачный фон
         
-        # Отрисовка текста основных кнопок
-        for button in self.buttons:
+        # Отрисовка заголовков групп кнопок
+        group_titles = [
+            (self.scene_buttons, "Управление сценой", (50, 50, 100)),
+            (self.primitives_buttons, "Примитивы", (100, 50, 50)),
+            (self.rendering_buttons, "Настройки отрисовки", (50, 100, 50)),
+            (self.cone_light_buttons, "Конус и освещение", (100, 50, 100))
+        ]
+        
+        for buttons, title, color in group_titles:
+            if buttons:
+                group_rect = buttons[0]["rect"].unionall([b["rect"] for b in buttons])
+                title_rect = pygame.Rect(group_rect.left, group_rect.top - 22, group_rect.width, 20)
+                title_text = self.title_font.render(title, True, color)
+                text_surface.blit(title_text, (title_rect.left, title_rect.top))
+        
+        # Отрисовка текста на кнопках
+        for button in self.all_buttons:
             text = self.font.render(button["text"], True, (0, 0, 0))
             text_rect = text.get_rect(center=button["rect"].center)
             text_surface.blit(text, text_rect)
         
-        # Отрисовка текста кнопок текстур
-        for button in self.texture_buttons:
-            text = self.font.render(button["text"], True, (0, 0, 0))
-            text_rect = text.get_rect(center=button["rect"].center)
-            text_surface.blit(text, text_rect)
-        
-        # Отображаем информацию о состоянии
-        mode_names = ["Заливка", "Каркас", "Точки"]
-        line_style_names = {0xFFFF: "Сплошная", 0xF0F0: "Пунктир", 0xAAAA: "Точечная"}
-        texture_mode_names = {'color': 'Цвет', 'checker': 'Шахматная', 'custom': 'Пользовательская'}
-        
-        status_text = [
-            f"Режим: {mode_names[self.current_render_mode]}",
+        # Отрисовка информационных панелей с подложками
+        self.draw_info_panel(text_surface, "status", "Статус сцены", [
+            f"Режим: {['Заливка', 'Каркас', 'Точки'][self.current_render_mode]}",
             f"Примитивов: {len(self.primitives)}",
             f"Источников света: {len(self.light_sources)}",
             f"Свет: {'ВКЛ' if self.light_enabled else 'ВЫКЛ'}",
             f"Толщина: {self.line_width}",
-            f"Тип линии: {line_style_names.get(self.line_style, 'Сплошная')}",
-            f"Текстура конуса: {texture_mode_names.get(self.cone_texture_mode, 'Цвет')}",
+            f"Тип линии: {'Сплошная' if self.line_style == 0xFFFF else 'Пунктирная' if self.line_style == 0xF0F0 else 'Точечная'}",
+            f"Текстура конуса: {'Цвет' if self.cone_texture_mode == 'color' else 'Шахматная' if self.cone_texture_mode == 'checker' else 'Пользовательская'}",
             f"Интенсивность света: {self.light_intensity:.1f}"
-        ]
+        ])
         
-        for i, text in enumerate(status_text):
-            text_surf = self.font.render(text, True, (255, 255, 255))
-            text_surface.blit(text_surf, (self.width - 200, 20 + i * 25))
-        
-        # Легенда системы координат
-        legend_text = [
-            "Система координат:",
+        self.draw_info_panel(text_surface, "coords", "Система координат", [
             "X - Красная ось",
             "Y - Зеленая ось", 
             "Z - Синяя ось",
             "Метки: каждые 2 единицы"
-        ]
+        ])
         
-        for i, text in enumerate(legend_text):
-            color = (255, 255, 255) if i == 0 else (255, 0, 0) if i == 1 else (0, 255, 0) if i == 2 else (0, 0, 255) if i == 3 else (200, 200, 200)
-            text_surf = self.font.render(text, True, color)
-            text_surface.blit(text_surf, (self.width - 250, self.height - 150 + i * 20))
-        
-        # Инструкции по управлению
-        instructions = [
+        self.draw_info_panel(text_surface, "controls", "Управление", [
             "Управление камерой:",
             "ЛКМ + движение - вращение",
             "Колесико - приближение/отдаление",
@@ -1085,20 +1130,21 @@ class GraphicsEditor:
             "M - смена режима отрисовки",
             "C - очистка объектов",
             "+/- - интенсивность света"
-        ]
-        
-        for i, text in enumerate(instructions):
-            text_surf = self.font.render(text, True, (200, 200, 255))
-            text_surface.blit(text_surf, (10, self.height - 200 + i * 20))
+        ])
         
         # Отрисовка поля ввода, если активно
         if self.input_active:
             input_rect = pygame.Rect(200, self.height - 50, self.width - 400, 30)
+            # Подложка для поля ввода
+            pygame.draw.rect(text_surface, (40, 40, 40, 220), input_rect.inflate(10, 10))
             pygame.draw.rect(text_surface, (255, 255, 255), input_rect)
             pygame.draw.rect(text_surface, (0, 0, 0), input_rect, 2)
             
+            prompt_rect = pygame.Rect(10, self.height - 80, self.width - 20, 25)
+            pygame.draw.rect(text_surface, (40, 40, 40, 220), prompt_rect.inflate(10, 5))
+            
             prompt_text = self.input_font.render(self.input_prompt, True, (255, 255, 255))
-            text_surface.blit(prompt_text, (10, self.height - 80))
+            text_surface.blit(prompt_text, (prompt_rect.x + 5, prompt_rect.y + 5))
             
             input_text = self.input_font.render(self.input_text, True, (0, 0, 0))
             text_surface.blit(input_text, (input_rect.x + 5, input_rect.y + 5))
@@ -1153,6 +1199,36 @@ class GraphicsEditor:
         
         # Восстанавливаем атрибуты OpenGL
         glPopAttrib()
+
+    def draw_info_panel(self, surface, panel_key, title, lines):
+        """Отрисовка информационной панели с заголовком и подложкой"""
+        panel = self.info_panels[panel_key]
+        
+        # Рисуем подложку
+        pygame.draw.rect(surface, (40, 40, 40, 220), panel)
+        pygame.draw.rect(surface, (80, 80, 80, 255), panel, 2)
+        
+        # Заголовок
+        title_text = self.title_font.render(title, True, (255, 255, 255))
+        surface.blit(title_text, (panel.x + 5, panel.y + 5))
+        
+        # Разделительная линия
+        pygame.draw.line(surface, (100, 100, 100), 
+                        (panel.x, panel.y + 25), 
+                        (panel.x + panel.width, panel.y + 25), 1)
+        
+        # Содержимое
+        for i, line in enumerate(lines):
+            color = (255, 255, 255)
+            if panel_key == "coords":
+                if i == 1: color = (255, 0, 0)    # X - красный
+                elif i == 2: color = (0, 255, 0)  # Y - зеленый
+                elif i == 3: color = (0, 0, 255)  # Z - синий
+            elif panel_key == "controls":
+                if i == 0: color = (200, 200, 255)  # Заголовок управления
+            
+            text = self.font.render(line, True, color)
+            surface.blit(text, (panel.x + 10, panel.y + 30 + i * 20))
 
     def run(self):
         """Основной цикл программы"""
