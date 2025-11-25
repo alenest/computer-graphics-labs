@@ -10,6 +10,7 @@ class GraphicsEditor:
         self.width, self.height = 1200, 800
         self.background_color = [0.0, 0.0, 0.0, 1.0]
         self.cone_color = [1.0, 1.0, 1.0, 1.0]  # Отдельный цвет для конуса
+        self.cone_texture_mode = 'color'  # Режим текстуры: 'color', 'checker', 'custom'
         self.current_primitive_color = [1.0, 1.0, 1.0, 1.0]  # Текущий цвет для новых примитивов
         self.line_width = 2.0
         self.line_style = 0xFFFF  # Сплошная линия по умолчанию
@@ -24,7 +25,6 @@ class GraphicsEditor:
         self.light_enabled = False
         self.texture_id = None
         self.custom_texture_id = None  # ID для пользовательской текстуры
-        self.use_custom_texture = False  # Флаг использования пользовательской текстуры
         self.camera_distance = -5
         self.camera_rotation_x = 0
         self.camera_rotation_y = 0
@@ -47,6 +47,11 @@ class GraphicsEditor:
         # Кэшированные текстуры для оптимизации
         self.palette_texture = None
         
+        # Текстуры для конуса
+        self.cone_checker_texture_id = None
+        self.checker_color1 = [1.0, 0.0, 0.0, 1.0]  # Первый цвет шахматной текстуры
+        self.checker_color2 = [1.0, 1.0, 0.0, 1.0]  # Второй цвет шахматной текстуры
+        
         # Инициализация интерфейса
         pygame.init()
         self.screen = pygame.display.set_mode((self.width, self.height), pygame.DOUBLEBUF | pygame.OPENGL)
@@ -63,6 +68,7 @@ class GraphicsEditor:
         glMatrixMode(GL_MODELVIEW)
         
         self.create_texture()
+        self.create_cone_checker_texture()
         self.setup_ui()
         self.setup_lighting()
         
@@ -141,6 +147,32 @@ class GraphicsEditor:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
+    def create_cone_checker_texture(self):
+        """Создание шахматной текстуры для конуса на основе выбранных цветов"""
+        width, height = 256, 256
+        texture_data = np.zeros((height, width, 3), dtype=np.uint8)
+        
+        # Создание шахматной текстуры
+        for y in range(height):
+            for x in range(width):
+                if (x // 32 + y // 32) % 2 == 0:
+                    texture_data[y, x] = [int(self.checker_color1[0] * 255), 
+                                         int(self.checker_color1[1] * 255), 
+                                         int(self.checker_color1[2] * 255)]
+                else:
+                    texture_data[y, x] = [int(self.checker_color2[0] * 255), 
+                                         int(self.checker_color2[1] * 255), 
+                                         int(self.checker_color2[2] * 255)]
+        
+        if self.cone_checker_texture_id is not None:
+            glDeleteTextures([self.cone_checker_texture_id])
+            
+        self.cone_checker_texture_id = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, self.cone_checker_texture_id)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, texture_data)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
     def load_custom_texture(self, filename):
         """Загрузка и создание текстуры из файла изображения в текущей директории"""
         try:
@@ -166,6 +198,9 @@ class GraphicsEditor:
             img_data = np.array(img)
             
             # Создаем текстуру OpenGL
+            if self.custom_texture_id is not None:
+                glDeleteTextures([self.custom_texture_id])
+                
             self.custom_texture_id = glGenTextures(1)
             glBindTexture(GL_TEXTURE_2D, self.custom_texture_id)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 256, 256, 0, GL_RGB, GL_UNSIGNED_BYTE, img_data)
@@ -184,31 +219,31 @@ class GraphicsEditor:
         # Основные кнопки слева
         self.buttons = [
             {"rect": pygame.Rect(10, 10, 180, 30), "text": "Цвет фона", "action": "bg_color"},
-            {"rect": pygame.Rect(10, 50, 180, 30), "text": "Цвет конуса", "action": "cone_color"},
-            {"rect": pygame.Rect(10, 90, 180, 30), "text": "Цвет фигур", "action": "primitive_color"},
-            {"rect": pygame.Rect(10, 130, 180, 30), "text": "Толщина линии +", "action": "line_width_up"},
-            {"rect": pygame.Rect(10, 170, 180, 30), "text": "Толщина линии -", "action": "line_width_down"},
-            {"rect": pygame.Rect(10, 210, 180, 30), "text": "Ввести координаты линии", "action": "input_line"},
-            {"rect": pygame.Rect(10, 250, 180, 30), "text": "Ввести координаты треугольника", "action": "input_triangle"},
-            {"rect": pygame.Rect(10, 290, 180, 30), "text": "Ввести координаты прямоугольника", "action": "input_rect"},
-            {"rect": pygame.Rect(10, 330, 180, 30), "text": "Ввести координаты многоугольника", "action": "input_polygon"},
-            {"rect": pygame.Rect(10, 370, 180, 30), "text": "Приблизить", "action": "zoom_in"},
-            {"rect": pygame.Rect(10, 410, 180, 30), "text": "Отдалить", "action": "zoom_out"},
-            {"rect": pygame.Rect(10, 450, 180, 30), "text": "Сменить режим отрисовки", "action": "change_render_mode"},
-            {"rect": pygame.Rect(10, 490, 180, 30), "text": "Сплошная линия", "action": "solid_line"},
-            {"rect": pygame.Rect(10, 530, 180, 30), "text": "Пунктирная линия", "action": "dashed_line"},
-            {"rect": pygame.Rect(10, 570, 180, 30), "text": "Точечная линия", "action": "dotted_line"},
-            {"rect": pygame.Rect(10, 610, 180, 30), "text": "Вкл/Выкл свет", "action": "toggle_light"},
-            {"rect": pygame.Rect(10, 650, 180, 30), "text": "Добавить источник света", "action": "add_light"},
-            {"rect": pygame.Rect(10, 690, 180, 30), "text": "Вращать конус", "action": "rotate_cone"},
-            {"rect": pygame.Rect(10, 730, 180, 30), "text": "Очистить объекты", "action": "clear_objects"},
+            {"rect": pygame.Rect(10, 50, 180, 30), "text": "Цвет фигур", "action": "primitive_color"},
+            {"rect": pygame.Rect(10, 90, 180, 30), "text": "Толщина линии +", "action": "line_width_up"},
+            {"rect": pygame.Rect(10, 130, 180, 30), "text": "Толщина линии -", "action": "line_width_down"},
+            {"rect": pygame.Rect(10, 170, 180, 30), "text": "Ввести координаты линии", "action": "input_line"},
+            {"rect": pygame.Rect(10, 210, 180, 30), "text": "Ввести координаты треугольника", "action": "input_triangle"},
+            {"rect": pygame.Rect(10, 250, 180, 30), "text": "Ввести координаты прямоугольника", "action": "input_rect"},
+            {"rect": pygame.Rect(10, 290, 180, 30), "text": "Ввести координаты многоугольника", "action": "input_polygon"},
+            {"rect": pygame.Rect(10, 330, 180, 30), "text": "Приблизить", "action": "zoom_in"},
+            {"rect": pygame.Rect(10, 370, 180, 30), "text": "Отдалить", "action": "zoom_out"},
+            {"rect": pygame.Rect(10, 410, 180, 30), "text": "Сменить режим отрисовки", "action": "change_render_mode"},
+            {"rect": pygame.Rect(10, 450, 180, 30), "text": "Сплошная линия", "action": "solid_line"},
+            {"rect": pygame.Rect(10, 490, 180, 30), "text": "Пунктирная линия", "action": "dashed_line"},
+            {"rect": pygame.Rect(10, 530, 180, 30), "text": "Точечная линия", "action": "dotted_line"},
+            {"rect": pygame.Rect(10, 570, 180, 30), "text": "Вкл/Выкл свет", "action": "toggle_light"},
+            {"rect": pygame.Rect(10, 610, 180, 30), "text": "Добавить источник света", "action": "add_light"},
+            {"rect": pygame.Rect(10, 650, 180, 30), "text": "Вращать конус", "action": "rotate_cone"},
+            {"rect": pygame.Rect(10, 690, 180, 30), "text": "Очистить объекты", "action": "clear_objects"},
         ]
         
-        # Кнопки текстур справа
+        # Кнопки текстур и цвета конуса справа
         self.texture_buttons = [
-            {"rect": pygame.Rect(self.width - 190, 10, 180, 30), "text": "Загрузить текстуру", "action": "load_texture"},
-            {"rect": pygame.Rect(self.width - 190, 50, 180, 30), "text": "Исп. свою текстуру", "action": "toggle_texture"},
-            {"rect": pygame.Rect(self.width - 190, 90, 180, 30), "text": "Исп. шахматную текстуру", "action": "use_checker_texture"}
+            {"rect": pygame.Rect(self.width - 190, 10, 180, 30), "text": "Цвет конуса", "action": "cone_color"},
+            {"rect": pygame.Rect(self.width - 190, 50, 180, 30), "text": "Шахматная текстура конуса", "action": "cone_checker_texture"},
+            {"rect": pygame.Rect(self.width - 190, 90, 180, 30), "text": "Пользовательская текстура конуса", "action": "cone_custom_texture"},
+            {"rect": pygame.Rect(self.width - 190, 130, 180, 30), "text": "Загрузить текстуру", "action": "load_texture"}
         ]
 
     def handle_events(self):
@@ -304,13 +339,25 @@ class GraphicsEditor:
             self.temp_selected_color = color + [1.0]
             
             # Если это режим немедленного применения, применяем цвет сразу
-            if self.color_picker_type in ['background', 'cone', 'primitive']:
+            if self.color_picker_type in ['background', 'cone', 'primitive', 'cone_checker_color']:
                 if self.color_picker_type == 'background':
                     self.background_color = self.temp_selected_color
                     print(f"Цвет фона изменен на {self.temp_selected_color}")
                 elif self.color_picker_type == 'cone':
                     self.cone_color = self.temp_selected_color
+                    self.cone_texture_mode = 'color'
                     print(f"Цвет конуса изменен на {self.temp_selected_color}")
+                elif self.color_picker_type == 'cone_checker_color':
+                    # Выбираем первый цвет для шахматной текстуры
+                    self.checker_color1 = self.temp_selected_color
+                    # Автоматически выбираем комплиментарный цвет
+                    self.checker_color2 = [1.0 - self.temp_selected_color[0], 
+                                          1.0 - self.temp_selected_color[1], 
+                                          1.0 - self.temp_selected_color[2], 
+                                          1.0]
+                    self.create_cone_checker_texture()
+                    self.cone_texture_mode = 'checker'
+                    print(f"Шахматная текстура конуса обновлена. Цвета: {self.checker_color1}, {self.checker_color2}")
                 elif self.color_picker_type == 'primitive':
                     self.current_primitive_color = self.temp_selected_color
                     print(f"Цвет фигур изменен на {self.temp_selected_color}")
@@ -368,6 +415,17 @@ class GraphicsEditor:
             self.color_picker_type = 'cone'
             self.temp_selected_color = self.cone_color.copy()
             print("Выберите цвет конуса из палитры")
+        elif action == "cone_checker_texture":
+            self.color_picker_active = True
+            self.color_picker_type = 'cone_checker_color'
+            self.temp_selected_color = self.checker_color1.copy()
+            print("Выберите основной цвет для шахматной текстуры конуса")
+        elif action == "cone_custom_texture":
+            if self.custom_texture_id is not None:
+                self.cone_texture_mode = 'custom'
+                print("Режим текстуры конуса: пользовательская текстура")
+            else:
+                print("Сначала загрузите текстуру")
         elif action == "primitive_color":
             self.color_picker_active = True
             self.color_picker_type = 'primitive'
@@ -435,18 +493,6 @@ class GraphicsEditor:
             self.clear_objects()
         elif action == "load_texture":
             self.start_input("Введите имя файла текстуры (в папке с программой):", "texture")
-        elif action == "toggle_texture":
-            if self.custom_texture_id is not None:
-                self.use_custom_texture = not self.use_custom_texture
-                if self.use_custom_texture:
-                    print("Используется пользовательская текстура")
-                else:
-                    print("Используется стандартная текстура")
-            else:
-                print("Сначала загрузите текстуру")
-        elif action == "use_checker_texture":
-            self.use_custom_texture = False
-            print("Используется шахматная текстура")
 
     def start_input_for_primitive(self):
         """Запускает ввод координат для выбранного примитива"""
@@ -476,8 +522,7 @@ class GraphicsEditor:
                 filename = self.input_text.strip()
                 if filename:
                     if self.load_custom_texture(filename):
-                        self.use_custom_texture = True
-                        print("Текстура успешно загружена и применена")
+                        print("Текстура успешно загружена")
                     else:
                         print("Ошибка загрузки текстуры")
                 else:
@@ -633,22 +678,27 @@ class GraphicsEditor:
         else:
             glDisable(GL_LIGHTING)
         
-        glEnable(GL_TEXTURE_2D)
-        
-        # Выбираем текстуру в зависимости от флага
-        if self.use_custom_texture and self.custom_texture_id is not None:
-            glBindTexture(GL_TEXTURE_2D, self.custom_texture_id)
-        else:
-            glBindTexture(GL_TEXTURE_2D, self.texture_id)
-        
         # Сохраняем текущий режим полигона
         glPushAttrib(GL_POLYGON_BIT)
         
         # Применяем текущий режим отрисовки
         self.apply_render_mode()
         
-        # Используем цвет конуса
-        glColor4f(*self.cone_color)
+        # Выбираем режим отрисовки конуса в зависимости от cone_texture_mode
+        if self.cone_texture_mode == 'color':
+            # Режим одного цвета
+            glDisable(GL_TEXTURE_2D)
+            glColor4f(*self.cone_color)
+        elif self.cone_texture_mode == 'checker':
+            # Режим шахматной текстуры
+            glEnable(GL_TEXTURE_2D)
+            glBindTexture(GL_TEXTURE_2D, self.cone_checker_texture_id)
+            glColor4f(1.0, 1.0, 1.0, 1.0)  # Белый цвет для правильного отображения текстуры
+        elif self.cone_texture_mode == 'custom':
+            # Режим пользовательской текстуры
+            glEnable(GL_TEXTURE_2D)
+            glBindTexture(GL_TEXTURE_2D, self.custom_texture_id)
+            glColor4f(1.0, 1.0, 1.0, 1.0)  # Белый цвет для правильного отображения текстуры
         
         # Рисуем конус
         quadric = gluNewQuadric()
@@ -795,6 +845,8 @@ class GraphicsEditor:
             button_color = self.background_color
         elif self.color_picker_type == 'cone':
             button_color = self.cone_color
+        elif self.color_picker_type == 'cone_checker_color':
+            button_color = self.checker_color1
         else:  # primitive или input_color
             button_color = self.current_primitive_color
         
@@ -954,6 +1006,7 @@ class GraphicsEditor:
         # Отображаем информацию о состоянии
         mode_names = ["Заливка", "Каркас", "Точки"]
         line_style_names = {0xFFFF: "Сплошная", 0xF0F0: "Пунктир", 0xAAAA: "Точечная"}
+        texture_mode_names = {'color': 'Цвет', 'checker': 'Шахматная', 'custom': 'Пользовательская'}
         
         status_text = [
             f"Режим: {mode_names[self.current_render_mode]}",
@@ -962,7 +1015,7 @@ class GraphicsEditor:
             f"Свет: {'ВКЛ' if self.light_enabled else 'ВЫКЛ'}",
             f"Толщина: {self.line_width}",
             f"Тип линии: {line_style_names.get(self.line_style, 'Сплошная')}",
-            f"Текстура: {'Пользовательская' if self.use_custom_texture and self.custom_texture_id is not None else 'Шахматная'}"
+            f"Текстура конуса: {texture_mode_names.get(self.cone_texture_mode, 'Цвет')}"
         ]
         
         for i, text in enumerate(status_text):
