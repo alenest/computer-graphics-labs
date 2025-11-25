@@ -7,24 +7,25 @@ import os
 
 class GraphicsEditor:
     def __init__(self):
-        self.width, self.height = 1200, 800
+        # Увеличиваем ширину окна для размещения кнопок по бокам
+        self.width, self.height = 1400, 800
         self.background_color = [0.0, 0.0, 0.0, 1.0]
-        self.cone_color = [1.0, 1.0, 1.0, 1.0]  # Отдельный цвет для конуса
-        self.cone_texture_mode = 'color'  # Режим текстуры: 'color', 'checker', 'custom'
-        self.current_primitive_color = [1.0, 1.0, 1.0, 1.0]  # Текущий цвет для новых примитивов
+        self.cone_color = [1.0, 1.0, 1.0, 1.0]
+        self.cone_texture_mode = 'color'
+        self.current_primitive_color = [1.0, 1.0, 1.0, 1.0]
         self.line_width = 2.0
-        self.line_style = 0xFFFF  # Сплошная линия по умолчанию
+        self.line_style = 0xFFFF
         self.line_stipple_factor = 1
         self.drawing_mode = None
-        self.primitives = []  # Список всех примитивов
-        self.light_sources = []  # Список источников света
+        self.primitives = []
+        self.light_sources = []
         self.scale = 1.0
         self.cone_rotation = [0, 0, 0]
         self.render_modes = [GL_FILL, GL_LINE, GL_POINT]
-        self.current_render_mode = 0  # Индекс текущего режима
+        self.current_render_mode = 0
         self.light_enabled = False
         self.texture_id = None
-        self.custom_texture_id = None  # ID для пользовательской текстуры
+        self.custom_texture_id = None
         self.camera_distance = -5
         self.camera_rotation_x = 0
         self.camera_rotation_y = 0
@@ -35,32 +36,35 @@ class GraphicsEditor:
         self.input_active = False
         self.input_text = ""
         self.input_prompt = ""
-        self.input_type = None  # 'primitive', 'light' или 'texture'
+        self.input_type = None
         self.input_coords = []
         
         # Переменные для выбора цвета
         self.color_picker_active = False
-        self.color_picker_type = None  # 'background', 'cone', 'primitive', 'input_color'
-        self.temp_selected_color = None  # Временный цвет для отложенного применения
-        self.pending_primitive_type = None  # Тип примитива, для которого выбирается цвет
+        self.color_picker_type = None
+        self.temp_selected_color = None
+        self.pending_primitive_type = None
         
         # Кэшированные текстуры для оптимизации
         self.palette_texture = None
         
         # Текстуры для конуса
         self.cone_checker_texture_id = None
-        self.checker_color1 = [1.0, 0.0, 0.0, 1.0]  # Первый цвет шахматной текстуры
-        self.checker_color2 = [1.0, 1.0, 0.0, 1.0]  # Второй цвет шахматной текстуры
+        self.checker_color1 = [1.0, 0.0, 0.0, 1.0]
+        self.checker_color2 = [1.0, 1.0, 0.0, 1.0]
         
-        # НАСТРОЙКИ ОСВЕЩЕНИЯ (сохраняем для интерфейса)
-        self.light_intensity = 1.0  # Общая интенсивность освещения (0.1 - 10.0)
+        # НАСТРОЙКИ ОСВЕЩЕНИЯ
+        self.light_intensity = 1.0
+        
+        # НОВАЯ ПЕРЕМЕННАЯ: видимость информационных панелей
+        self.info_panels_visible = True
         
         # Инициализация интерфейса
         pygame.init()
         self.screen = pygame.display.set_mode((self.width, self.height), pygame.DOUBLEBUF | pygame.OPENGL)
         pygame.display.set_caption("3D Graphics Editor")
         
-        # Шрифт для текста (поддерживающий кириллицу)
+        # Шрифты
         self.font = pygame.font.SysFont('Arial', 14)
         self.input_font = pygame.font.SysFont('Arial', 16)
         self.title_font = pygame.font.SysFont('Arial', 16, bold=True)
@@ -74,32 +78,27 @@ class GraphicsEditor:
         self.create_texture()
         self.create_cone_checker_texture()
         self.setup_ui()
-        self.setup_lighting()  # Настраиваем освещение при инициализации
+        self.setup_lighting()
         
-        # Создаем текстуру палитры один раз при инициализации
         self.create_palette_texture()
 
     def create_palette_texture(self):
         """Создание текстуры палитры один раз для оптимизации"""
-        # Создаем поверхность для палитры
         palette_surface = pygame.Surface((300, 300), pygame.SRCALPHA)
         
-        # Рисуем палитру цветов (спектр HSV) - ПРАВИЛЬНО ПЕРЕВЕРНУТУЮ
         for y in range(300):
             for x in range(300):
                 hue = x / 300
                 saturation = 1.0
-                value = 1.0 - (y / 300)  # Переворачиваем по Y
+                value = 1.0 - (y / 300)
                 
                 color = self.hsv_to_rgb(hue, saturation, value)
                 color_int = [int(c * 255) for c in color]
                 
                 palette_surface.set_at((x, y), color_int)
         
-        # Рамка палитры
         pygame.draw.rect(palette_surface, (255, 255, 255), (0, 0, 300, 300), 2)
         
-        # Конвертируем поверхность в текстуру OpenGL
         palette_data = pygame.image.tostring(palette_surface, "RGBA", True)
         
         self.palette_texture = glGenTextures(1)
@@ -109,18 +108,15 @@ class GraphicsEditor:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
     def setup_lighting(self):
-        """Настройка освещения - ВОЗВРАЩАЕМ РАБОЧУЮ РЕАЛИЗАЦИЮ"""
-        # ВСЕГДА включаем освещение для корректной работы
+        """Настройка освещения"""
         glEnable(GL_LIGHTING)
         
-        # Базовый источник света
         glEnable(GL_LIGHT0)
         glLightfv(GL_LIGHT0, GL_POSITION, [2.0, 2.0, 2.0, 1.0])
         glLightfv(GL_LIGHT0, GL_AMBIENT, [0.2 * self.light_intensity, 0.2 * self.light_intensity, 0.2 * self.light_intensity, 1.0])
         glLightfv(GL_LIGHT0, GL_DIFFUSE, [0.8 * self.light_intensity, 0.8 * self.light_intensity, 0.8 * self.light_intensity, 1.0])
         glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0 * self.light_intensity, 1.0 * self.light_intensity, 1.0 * self.light_intensity, 1.0])
         
-        # Дополнительные источники света
         light_ids = [GL_LIGHT1, GL_LIGHT2, GL_LIGHT3, GL_LIGHT4, GL_LIGHT5, GL_LIGHT6, GL_LIGHT7]
         for i, light_pos in enumerate(self.light_sources):
             if i < len(light_ids):
@@ -134,17 +130,16 @@ class GraphicsEditor:
         glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE)
 
     def create_texture(self):
-        """Создание пользовательской текстуры (шахматная доска)"""
+        """Создание пользовательской текстуры"""
         width, height = 256, 256
         texture_data = np.zeros((height, width, 3), dtype=np.uint8)
         
-        # Создание шахматной текстуры
         for y in range(height):
             for x in range(width):
                 if (x // 32 + y // 32) % 2 == 0:
-                    texture_data[y, x] = [255, 0, 0]  # Красный
+                    texture_data[y, x] = [255, 0, 0]
                 else:
-                    texture_data[y, x] = [255, 255, 0]  # Желтый
+                    texture_data[y, x] = [255, 255, 0]
         
         self.texture_id = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, self.texture_id)
@@ -153,11 +148,10 @@ class GraphicsEditor:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
     def create_cone_checker_texture(self):
-        """Создание шахматной текстуры для конуса на основе выбранных цветов"""
+        """Создание шахматной текстуры для конуса"""
         width, height = 256, 256
         texture_data = np.zeros((height, width, 3), dtype=np.uint8)
         
-        # Создание шахматной текстуры
         for y in range(height):
             for x in range(width):
                 if (x // 32 + y // 32) % 2 == 0:
@@ -179,9 +173,8 @@ class GraphicsEditor:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
     def load_custom_texture(self, filename):
-        """Загрузка и создание текстуры из файла изображения в текущей директории"""
+        """Загрузка текстуры из файла"""
         try:
-            # Получаем путь к текущей директории
             current_dir = os.path.dirname(os.path.abspath(__file__))
             filepath = os.path.join(current_dir, filename)
             
@@ -189,20 +182,15 @@ class GraphicsEditor:
                 print(f"Файл {filename} не найден в директории программы")
                 return False
             
-            # Загружаем изображение с помощью PIL
             img = Image.open(filepath)
             
-            # Конвертируем в RGB, если необходимо
             if img.mode != 'RGB':
                 img = img.convert('RGB')
             
-            # Изменяем размер до степени двойки (оптимально для текстур)
             img = img.resize((256, 256), Image.Resampling.LANCZOS)
             
-            # Конвертируем изображение в массив numpy
             img_data = np.array(img)
             
-            # Создаем текстуру OpenGL
             if self.custom_texture_id is not None:
                 glDeleteTextures([self.custom_texture_id])
                 
@@ -220,75 +208,75 @@ class GraphicsEditor:
             return False
 
     def setup_ui(self):
-        """Создание элементов интерфейса - ПОЛНОСТЬЮ ПЕРЕРАБОТАННОЕ"""
-        # Увеличиваем ширину кнопок для лучшего отображения текста
+        """Создание элементов интерфейса - ПОЛНОСТЬЮ ПЕРЕРАБОТАНО"""
         button_width = 200
-        button_height = 30
-        button_margin = 10
-        section_margin = 20
+        button_height = 35
+        button_margin = 8
         
-        # Начальные координаты для разных секций
+        # Левая колонка кнопок
         left_x = 10
-        center_x = 220
-        right_x = 430
-        far_right_x = 640
+        left_y_start = 10
         
-        y_start = 10
+        # Правая колонка кнопок  
+        right_x = self.width - button_width - 10
+        right_y_start = 10
         
-        # СЕКЦИЯ 1: Управление сценой (левая колонка)
-        scene_y = y_start
+        # СЕКЦИЯ: Управление сценой (левая колонка)
         self.scene_buttons = [
-            {"rect": pygame.Rect(left_x, scene_y, button_width, button_height), "text": "Цвет фона", "action": "bg_color"},
-            {"rect": pygame.Rect(left_x, scene_y + button_height + button_margin, button_width, button_height), "text": "Приблизить", "action": "zoom_in"},
-            {"rect": pygame.Rect(left_x, scene_y + 2*(button_height + button_margin), button_width, button_height), "text": "Отдалить", "action": "zoom_out"},
-            {"rect": pygame.Rect(left_x, scene_y + 3*(button_height + button_margin), button_width, button_height), "text": "Сброс камеры", "action": "reset_camera"},
-            {"rect": pygame.Rect(left_x, scene_y + 4*(button_height + button_margin), button_width, button_height), "text": "Очистить объекты", "action": "clear_objects"},
+            {"rect": pygame.Rect(left_x, left_y_start, button_width, button_height), "text": "Цвет фона", "action": "bg_color"},
+            {"rect": pygame.Rect(left_x, left_y_start + button_height + button_margin, button_width, button_height), "text": "Приблизить", "action": "zoom_in"},
+            {"rect": pygame.Rect(left_x, left_y_start + 2*(button_height + button_margin), button_width, button_height), "text": "Отдалить", "action": "zoom_out"},
+            {"rect": pygame.Rect(left_x, left_y_start + 3*(button_height + button_margin), button_width, button_height), "text": "Сброс камеры", "action": "reset_camera"},
+            {"rect": pygame.Rect(left_x, left_y_start + 4*(button_height + button_margin), button_width, button_height), "text": "Очистить объекты", "action": "clear_objects"},
         ]
         
-        # СЕКЦИЯ 2: Примитивы (центральная левая колонка)
-        primitives_y = y_start
+        # СЕКЦИЯ: Примитивы (левая колонка, продолжение)
+        primitives_y = left_y_start + 5*(button_height + button_margin) + 20
         self.primitives_buttons = [
-            {"rect": pygame.Rect(center_x, primitives_y, button_width, button_height), "text": "Цвет фигур", "action": "primitive_color"},
-            {"rect": pygame.Rect(center_x, primitives_y + button_height + button_margin, button_width, button_height), "text": "Ввести координаты линии", "action": "input_line"},
-            {"rect": pygame.Rect(center_x, primitives_y + 2*(button_height + button_margin), button_width, button_height), "text": "Ввести координаты треугольника", "action": "input_triangle"},
-            {"rect": pygame.Rect(center_x, primitives_y + 3*(button_height + button_margin), button_width, button_height), "text": "Ввести координаты прямоугольника", "action": "input_rect"},
-            {"rect": pygame.Rect(center_x, primitives_y + 4*(button_height + button_margin), button_width, button_height), "text": "Ввести координаты многоугольника", "action": "input_polygon"},
+            {"rect": pygame.Rect(left_x, primitives_y, button_width, button_height), "text": "Цвет фигур", "action": "primitive_color"},
+            {"rect": pygame.Rect(left_x, primitives_y + button_height + button_margin, button_width, button_height), "text": "Ввести координаты линии", "action": "input_line"},
+            {"rect": pygame.Rect(left_x, primitives_y + 2*(button_height + button_margin), button_width, button_height), "text": "Ввести координаты треугольника", "action": "input_triangle"},
+            {"rect": pygame.Rect(left_x, primitives_y + 3*(button_height + button_margin), button_width, button_height), "text": "Ввести координаты прямоугольника", "action": "input_rect"},
+            {"rect": pygame.Rect(left_x, primitives_y + 4*(button_height + button_margin), button_width, button_height), "text": "Ввести координаты многоугольника", "action": "input_polygon"},
         ]
         
-        # СЕКЦИЯ 3: Настройки отрисовки (центральная правая колонка)
-        rendering_y = y_start
+        # СЕКЦИЯ: Настройки отрисовки (правая колонка)
         self.rendering_buttons = [
-            {"rect": pygame.Rect(right_x, rendering_y, button_width, button_height), "text": "Толщина линии +", "action": "line_width_up"},
-            {"rect": pygame.Rect(right_x, rendering_y + button_height + button_margin, button_width, button_height), "text": "Толщина линии -", "action": "line_width_down"},
-            {"rect": pygame.Rect(right_x, rendering_y + 2*(button_height + button_margin), button_width, button_height), "text": "Сплошная линия", "action": "solid_line"},
-            {"rect": pygame.Rect(right_x, rendering_y + 3*(button_height + button_margin), button_width, button_height), "text": "Пунктирная линия", "action": "dashed_line"},
-            {"rect": pygame.Rect(right_x, rendering_y + 4*(button_height + button_margin), button_width, button_height), "text": "Точечная линия", "action": "dotted_line"},
-            {"rect": pygame.Rect(right_x, rendering_y + 5*(button_height + button_margin), button_width, button_height), "text": "Сменить режим отрисовки", "action": "change_render_mode"},
+            {"rect": pygame.Rect(right_x, right_y_start, button_width, button_height), "text": "Толщина линии +", "action": "line_width_up"},
+            {"rect": pygame.Rect(right_x, right_y_start + button_height + button_margin, button_width, button_height), "text": "Толщина линии -", "action": "line_width_down"},
+            {"rect": pygame.Rect(right_x, right_y_start + 2*(button_height + button_margin), button_width, button_height), "text": "Сплошная линия", "action": "solid_line"},
+            {"rect": pygame.Rect(right_x, right_y_start + 3*(button_height + button_margin), button_width, button_height), "text": "Пунктирная линия", "action": "dashed_line"},
+            {"rect": pygame.Rect(right_x, right_y_start + 4*(button_height + button_margin), button_width, button_height), "text": "Точечная линия", "action": "dotted_line"},
+            {"rect": pygame.Rect(right_x, right_y_start + 5*(button_height + button_margin), button_width, button_height), "text": "Сменить режим отрисовки", "action": "change_render_mode"},
         ]
         
-        # СЕКЦИЯ 4: Конус и освещение (правая колонка)
-        cone_light_y = y_start
+        # СЕКЦИЯ: Конус и освещение (правая колонка, продолжение)
+        cone_light_y = right_y_start + 6*(button_height + button_margin) + 20
         self.cone_light_buttons = [
-            {"rect": pygame.Rect(far_right_x, cone_light_y, button_width, button_height), "text": "Цвет конуса", "action": "cone_color"},
-            {"rect": pygame.Rect(far_right_x, cone_light_y + button_height + button_margin, button_width, button_height), "text": "Шахматная текстура конуса", "action": "cone_checker_texture"},
-            {"rect": pygame.Rect(far_right_x, cone_light_y + 2*(button_height + button_margin), button_width, button_height), "text": "Пользовательская текстура", "action": "cone_custom_texture"},
-            {"rect": pygame.Rect(far_right_x, cone_light_y + 3*(button_height + button_margin), button_width, button_height), "text": "Загрузить текстуру", "action": "load_texture"},
-            {"rect": pygame.Rect(far_right_x, cone_light_y + 4*(button_height + button_margin), button_width, button_height), "text": "Вращать конус", "action": "rotate_cone"},
-            {"rect": pygame.Rect(far_right_x, cone_light_y + 5*(button_height + button_margin), button_width, button_height), "text": "Вкл/Выкл свет", "action": "toggle_light"},
-            {"rect": pygame.Rect(far_right_x, cone_light_y + 6*(button_height + button_margin), button_width, button_height), "text": "Добавить источник света", "action": "add_light"},
-            {"rect": pygame.Rect(far_right_x, cone_light_y + 7*(button_height + button_margin), button_width, button_height), "text": "Увеличить интенсивность света", "action": "increase_light_intensity"},
-            {"rect": pygame.Rect(far_right_x, cone_light_y + 8*(button_height + button_margin), button_width, button_height), "text": "Уменьшить интенсивность света", "action": "decrease_light_intensity"},
+            {"rect": pygame.Rect(right_x, cone_light_y, button_width, button_height), "text": "Цвет конуса", "action": "cone_color"},
+            {"rect": pygame.Rect(right_x, cone_light_y + button_height + button_margin, button_width, button_height), "text": "Шахматная текстура", "action": "cone_checker_texture"},
+            {"rect": pygame.Rect(right_x, cone_light_y + 2*(button_height + button_margin), button_width, button_height), "text": "Пользовательская текстура", "action": "cone_custom_texture"},
+            {"rect": pygame.Rect(right_x, cone_light_y + 3*(button_height + button_margin), button_width, button_height), "text": "Загрузить текстуру", "action": "load_texture"},
+            {"rect": pygame.Rect(right_x, cone_light_y + 4*(button_height + button_margin), button_width, button_height), "text": "Вращать конус", "action": "rotate_cone"},
+            {"rect": pygame.Rect(right_x, cone_light_y + 5*(button_height + button_margin), button_width, button_height), "text": "Вкл/Выкл свет", "action": "toggle_light"},
+            {"rect": pygame.Rect(right_x, cone_light_y + 6*(button_height + button_margin), button_width, button_height), "text": "Добавить источник света", "action": "add_light"},
+            {"rect": pygame.Rect(right_x, cone_light_y + 7*(button_height + button_margin), button_width, button_height), "text": "Увеличить интенсивность", "action": "increase_light_intensity"},
+            {"rect": pygame.Rect(right_x, cone_light_y + 8*(button_height + button_margin), button_width, button_height), "text": "Уменьшить интенсивность", "action": "decrease_light_intensity"},
         ]
         
-        # Объединяем все кнопки для удобства обработки
+        # Объединяем все кнопки
         self.all_buttons = (self.scene_buttons + self.primitives_buttons + 
                            self.rendering_buttons + self.cone_light_buttons)
         
-        # Определяем области для информационных панелей
+        # Области для информационных панелей (теперь они располагаются вверху по центру)
+        panel_width = 300
+        panel_height = 120
+        panel_x = (self.width - panel_width) // 2
+        
         self.info_panels = {
-            "status": pygame.Rect(self.width - 320, 10, 310, 150),
-            "coords": pygame.Rect(self.width - 320, 170, 310, 120),
-            "controls": pygame.Rect(10, self.height - 230, 400, 220)
+            "status": pygame.Rect(panel_x, 10, panel_width, panel_height),
+            "coords": pygame.Rect(panel_x, 140, panel_width, panel_height),
+            "controls": pygame.Rect(panel_x, 270, panel_width, 150)
         }
 
     def handle_events(self):
@@ -297,25 +285,23 @@ class GraphicsEditor:
             if event.type == pygame.QUIT:
                 return False
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:  # Левая кнопка мыши
+                if event.button == 1:
                     if self.color_picker_active:
                         self.handle_color_picker_click(event.pos)
                     else:
                         self.handle_click(event.pos)
-                        # Начало вращения камеры
                         if not any(button["rect"].collidepoint(event.pos) for button in self.all_buttons):
                             self.is_rotating = True
                             self.last_mouse_pos = event.pos
-                elif event.button == 4:  # Колесо мыши вверх
+                elif event.button == 4:
                     self.camera_distance = min(-1, self.camera_distance + 0.5)
-                elif event.button == 5:  # Колесо мыши вниз
+                elif event.button == 5:
                     self.camera_distance = max(-20, self.camera_distance - 0.5)
             elif event.type == pygame.MOUSEBUTTONUP:
-                if event.button == 1:  # Левая кнопка мыши
+                if event.button == 1:
                     self.is_rotating = False
             elif event.type == pygame.MOUSEMOTION:
                 if self.is_rotating and self.last_mouse_pos:
-                    # Вращение камеры
                     dx = event.pos[0] - self.last_mouse_pos[0]
                     dy = event.pos[1] - self.last_mouse_pos[1]
                     self.camera_rotation_y += dx * 0.5
@@ -334,27 +320,29 @@ class GraphicsEditor:
                         self.input_text += event.unicode
                 else:
                     if event.key == pygame.K_r:
-                        self.cone_rotation = [0, 0, 0]  # Сброс вращения
+                        self.cone_rotation = [0, 0, 0]
                     elif event.key == pygame.K_l:
                         self.toggle_lighting()
                     elif event.key == pygame.K_c:
                         self.clear_objects()
                     elif event.key == pygame.K_SPACE:
-                        # Сброс камеры
                         self.camera_rotation_x = 0
                         self.camera_rotation_y = 0
                         self.camera_distance = -5
                     elif event.key == pygame.K_m:
-                        self.change_render_mode()  # Смена режима отрисовки по клавише M
+                        self.change_render_mode()
                     elif event.key == pygame.K_PLUS or event.key == pygame.K_EQUALS:
                         self.increase_light_intensity()
                     elif event.key == pygame.K_MINUS:
                         self.decrease_light_intensity()
+                    # НОВАЯ КЛАВИША: переключение видимости информационных панелей
+                    elif event.key == pygame.K_i:
+                        self.info_panels_visible = not self.info_panels_visible
+                        print(f"Информационные панели: {'ВКЛ' if self.info_panels_visible else 'ВЫКЛ'}")
         return True
 
     def handle_click(self, pos):
         """Обработка кликов по интерфейсу"""
-        # Проверяем все кнопки
         for button in self.all_buttons:
             if button["rect"].collidepoint(pos):
                 self.execute_action(button["action"])
@@ -363,25 +351,20 @@ class GraphicsEditor:
     def handle_color_picker_click(self, pos):
         """Обработка кликов в палитре цветов"""
         palette_rect = pygame.Rect(self.width // 2 - 150, self.height // 2 - 150, 300, 300)
-        action_button_rect = pygame.Rect(self.width // 2 + 160, self.height // 2 - 150, 30, 30)  # Квадратная кнопка действия
+        action_button_rect = pygame.Rect(self.width // 2 + 160, self.height // 2 - 150, 30, 30)
         
-        # Проверяем, был ли клик в области палитры
         if palette_rect.collidepoint(pos):
-            # Получаем цвет из позиции клика
             x, y = pos
             rel_x = x - palette_rect.left
             rel_y = y - palette_rect.top
             
-            # Вычисляем цвет на основе позиции в палитре (переворачиваем Y)
             hue = rel_x / palette_rect.width
             saturation = 1.0
-            value = 1.0 - (rel_y / palette_rect.height)  # Переворачиваем по Y
+            value = 1.0 - (rel_y / palette_rect.height)
             
-            # Преобразуем HSV в RGB
             color = self.hsv_to_rgb(hue, saturation, value)
             self.temp_selected_color = color + [1.0]
             
-            # Если это режим немедленного применения, применяем цвет сразу
             if self.color_picker_type in ['background', 'cone', 'primitive', 'cone_checker_color']:
                 if self.color_picker_type == 'background':
                     self.background_color = self.temp_selected_color
@@ -391,9 +374,7 @@ class GraphicsEditor:
                     self.cone_texture_mode = 'color'
                     print(f"Цвет конуса изменен на {self.temp_selected_color}")
                 elif self.color_picker_type == 'cone_checker_color':
-                    # Выбираем первый цвет для шахматной текстуры
                     self.checker_color1 = self.temp_selected_color
-                    # Автоматически выбираем комплиментарный цвет
                     self.checker_color2 = [1.0 - self.temp_selected_color[0], 
                                           1.0 - self.temp_selected_color[1], 
                                           1.0 - self.temp_selected_color[2], 
@@ -405,19 +386,15 @@ class GraphicsEditor:
                     self.current_primitive_color = self.temp_selected_color
                     print(f"Цвет фигур изменен на {self.temp_selected_color}")
             
-        # Проверяем, был ли клик на кнопке действия
         elif action_button_rect.collidepoint(pos):
             if self.color_picker_type == 'input_color':
-                # Применяем временный цвет к текущему цвету фигур
                 if self.temp_selected_color is not None:
                     self.current_primitive_color = self.temp_selected_color.copy()
                     print(f"Цвет для {self.pending_primitive_type} установлен на {self.current_primitive_color}")
                 
-                # Закрываем палитру и запускаем ввод координат
                 self.color_picker_active = False
                 self.start_input_for_primitive()
             else:
-                # Для других режимов просто закрываем палитру
                 self.color_picker_active = False
 
     def hsv_to_rgb(self, h, s, v):
@@ -443,7 +420,7 @@ class GraphicsEditor:
             return [p, q, v]
         elif i == 4:
             return [t, p, v]
-        else:  # i == 5
+        else:
             return [v, p, q]
 
     def execute_action(self, action):
@@ -518,15 +495,15 @@ class GraphicsEditor:
         elif action == "change_render_mode":
             self.change_render_mode()
         elif action == "solid_line":
-            self.line_style = 0xFFFF  # Сплошная линия
+            self.line_style = 0xFFFF
             self.line_stipple_factor = 1
             print("Тип линии: Сплошная")
         elif action == "dashed_line":
-            self.line_style = 0xF0F0  # Пунктирная линия
+            self.line_style = 0xF0F0
             self.line_stipple_factor = 1
             print("Тип линии: Пунктирная")
         elif action == "dotted_line":
-            self.line_style = 0xAAAA  # Точечная линия
+            self.line_style = 0xAAAA
             self.line_stipple_factor = 1
             print("Тип линии: Точечная")
         elif action == "toggle_light":
@@ -534,7 +511,7 @@ class GraphicsEditor:
         elif action == "add_light":
             self.start_input("Введите координаты источника света (x,y,z):", "light")
         elif action == "rotate_cone":
-            self.cone_rotation[1] += 15  # Вращение вокруг оси Y
+            self.cone_rotation[1] += 15
             print(f"Вращение конуса: {self.cone_rotation}")
         elif action == "clear_objects":
             self.clear_objects()
@@ -586,7 +563,6 @@ class GraphicsEditor:
         """Обрабатывает введенные данные"""
         try:
             if self.input_type == "texture":
-                # Обработка ввода имени файла текстуры
                 filename = self.input_text.strip()
                 if filename:
                     if self.load_custom_texture(filename):
@@ -597,40 +573,39 @@ class GraphicsEditor:
                     print("Имя файла не может быть пустым")
                     
             else:
-                # Обработка ввода координат (существующий код)
                 coords = [float(x.strip()) for x in self.input_text.split(',')]
                 
                 if self.input_type == "line" and len(coords) == 6:
                     self.primitives.append({
                         "type": "line", 
                         "coords": coords,
-                        "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
+                        "color": self.current_primitive_color.copy()
                     })
                     print("Линия добавлена")
                 elif self.input_type == "triangle" and len(coords) == 9:
                     self.primitives.append({
                         "type": "triangle", 
                         "coords": coords,
-                        "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
+                        "color": self.current_primitive_color.copy()
                     })
                     print("Треугольник добавлен")
                 elif self.input_type == "rectangle" and len(coords) == 6:
                     self.primitives.append({
                         "type": "rectangle", 
                         "coords": coords,
-                        "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
+                        "color": self.current_primitive_color.copy()
                     })
                     print("Прямоугольник добавлен")
                 elif self.input_type == "polygon" and len(coords) >= 9 and len(coords) % 3 == 0:
                     self.primitives.append({
                         "type": "polygon", 
                         "coords": coords,
-                        "color": self.current_primitive_color.copy()  # Сохраняем цвет при создании
+                        "color": self.current_primitive_color.copy()
                     })
                     print("Многоугольник добавлен")
                 elif self.input_type == "light" and len(coords) == 3:
                     self.light_sources.append(coords)
-                    self.setup_lighting()  # Обновляем освещение
+                    self.setup_lighting()
                     print(f"Источник света добавлен в позиции {coords}")
                 else:
                     print("Ошибка: неверное количество координат")
@@ -646,7 +621,7 @@ class GraphicsEditor:
         """Очищает все объекты, кроме конуса"""
         self.primitives = []
         self.light_sources = []
-        self.setup_lighting()  # Обновляем освещение
+        self.setup_lighting()
         print("Все объекты очищены")
 
     def change_render_mode(self):
@@ -664,146 +639,118 @@ class GraphicsEditor:
 
     def apply_render_mode(self):
         """Применяет текущий режим отрисовки ко всем объектам"""
-        # Устанавливаем режим отрисовки
         glPolygonMode(GL_FRONT_AND_BACK, self.render_modes[self.current_render_mode])
         
-        # Устанавливаем толщину линии для каркасного режима
         if self.render_modes[self.current_render_mode] == GL_LINE:
             glLineWidth(self.line_width)
-            # Устанавливаем тип линии
             if self.line_style != 0xFFFF:
                 glEnable(GL_LINE_STIPPLE)
                 glLineStipple(self.line_stipple_factor, self.line_style)
         
-        # Устанавливаем размер точек для точечного режима
         if self.render_modes[self.current_render_mode] == GL_POINT:
             glPointSize(self.line_width)
 
     def draw_coordinate_system(self):
         """Рисование системы координат с подписями"""
-        # Сохраняем состояние OpenGL
         glPushAttrib(GL_ALL_ATTRIB_BITS)
         glDisable(GL_LIGHTING)
         
-        # Рисуем оси координат
         glLineWidth(3.0)
         
-        # Ось X (красная)
         glColor3f(1.0, 0.0, 0.0)
         glBegin(GL_LINES)
         glVertex3f(-10.0, 0.0, 0.0)
         glVertex3f(10.0, 0.0, 0.0)
         glEnd()
         
-        # Ось Y (зеленая)
         glColor3f(0.0, 1.0, 0.0)
         glBegin(GL_LINES)
         glVertex3f(0.0, -10.0, 0.0)
         glVertex3f(0.0, 10.0, 0.0)
         glEnd()
         
-        # Ось Z (синяя)
         glColor3f(0.0, 0.0, 1.0)
         glBegin(GL_LINES)
         glVertex3f(0.0, 0.0, -10.0)
         glVertex3f(0.0, 0.0, 10.0)
         glEnd()
         
-        # Рисуем метки на осях (точки)
         glPointSize(6.0)
         glBegin(GL_POINTS)
         
-        # Метки на оси X
         for i in range(-10, 11, 2):
             if i != 0:
                 glVertex3f(i, 0.0, 0.0)
         
-        # Метки на оси Y
         for i in range(-10, 11, 2):
             if i != 0:
                 glVertex3f(0.0, i, 0.0)
         
-        # Метки на оси Z
         for i in range(-10, 11, 2):
             if i != 0:
                 glVertex3f(0.0, 0.0, i)
         
         glEnd()
         
-        # Восстанавливаем состояние OpenGL
         glPopAttrib()
 
     def draw_cone(self):
-        """Рисование конуса с текстурой и освещением - ИСПРАВЛЕННАЯ ВЕРСИЯ"""
+        """Рисование конуса с текстурой и освещением"""
         glPushMatrix()
         glTranslatef(0, 0, -2)
         glRotatef(self.cone_rotation[0], 1, 0, 0)
         glRotatef(self.cone_rotation[1], 0, 1, 0)
         glRotatef(self.cone_rotation[2], 0, 0, 1)
         
-        # Управление освещением
         if self.light_enabled:
             glEnable(GL_LIGHTING)
         else:
             glDisable(GL_LIGHTING)
         
-        # Сохраняем текущий режим полигона
         glPushAttrib(GL_POLYGON_BIT)
         
-        # Применяем текущий режим отрисовки
         self.apply_render_mode()
         
-        # Выбираем режим отрисовки конуса в зависимости от cone_texture_mode
         if self.cone_texture_mode == 'color':
-            # Режим одного цвета
             glDisable(GL_TEXTURE_2D)
             glColor4f(*self.cone_color)
         elif self.cone_texture_mode == 'checker':
-            # Режим шахматной текстуры
             glEnable(GL_TEXTURE_2D)
             glBindTexture(GL_TEXTURE_2D, self.cone_checker_texture_id)
-            glColor4f(1.0, 1.0, 1.0, 1.0)  # Белый цвет для правильного отображения текстуры
+            glColor4f(1.0, 1.0, 1.0, 1.0)
         elif self.cone_texture_mode == 'custom':
-            # Режим пользовательской текстуры
             glEnable(GL_TEXTURE_2D)
             glBindTexture(GL_TEXTURE_2D, self.custom_texture_id)
-            glColor4f(1.0, 1.0, 1.0, 1.0)  # Белый цвет для правильного отображения текстуры
+            glColor4f(1.0, 1.0, 1.0, 1.0)
         
-        # Рисуем конус
         quadric = gluNewQuadric()
         gluQuadricTexture(quadric, GL_TRUE)
-        gluCylinder(quadric, 1, 0, 2, 32, 32)  # Конус = цилиндр с верхним радиусом 0
+        gluCylinder(quadric, 1, 0, 2, 32, 32)
         gluDeleteQuadric(quadric)
         
-        # Отключаем пунктир, если был включен
         if self.render_modes[self.current_render_mode] == GL_LINE and self.line_style != 0xFFFF:
             glDisable(GL_LINE_STIPPLE)
         
-        # Восстанавливаем режим полигона
         glPopAttrib()
         
         glDisable(GL_TEXTURE_2D)
         glPopMatrix()
 
     def draw_primitives(self):
-        """Рисование всех примитивов с учетом текущего режима отрисовки"""
+        """Рисование всех примитивов"""
         if not self.primitives:
             return
         
-        # Сохраняем текущий режим полигона
         glPushAttrib(GL_POLYGON_BIT)
             
-        glDisable(GL_LIGHTING)  # Отключаем освещение для примитивов
+        glDisable(GL_LIGHTING)
         
-        # Применяем текущий режим отрисовки к примитивам
         self.apply_render_mode()
         
-        # Рисуем все примитивы
         for primitive in self.primitives:
             coords = primitive["coords"]
-            color = primitive["color"]  # Используем цвет, сохраненный в примитиве
+            color = primitive["color"]
             
-            # Устанавливаем цвет примитива
             glColor4f(*color)
             
             if primitive["type"] == "line" and len(coords) == 6:
@@ -834,15 +781,12 @@ class GraphicsEditor:
                     glVertex3f(coords[i], coords[i+1], coords[i+2])
                 glEnd()
         
-        # Отключаем пунктир, если был включен
         if self.render_modes[self.current_render_mode] == GL_LINE and self.line_style != 0xFFFF:
             glDisable(GL_LINE_STIPPLE)
             
-        # Восстанавливаем освещение если оно было включено
         if self.light_enabled:
             glEnable(GL_LIGHTING)
             
-        # Восстанавливаем режим полигона
         glPopAttrib()
 
     def draw_light_sources(self):
@@ -851,7 +795,7 @@ class GraphicsEditor:
             return
             
         glDisable(GL_LIGHTING)
-        glColor3f(1.0, 1.0, 0.0)  # Желтый цвет для источников света
+        glColor3f(1.0, 1.0, 0.0)
         glPointSize(10.0)
         
         glBegin(GL_POINTS)
@@ -863,11 +807,9 @@ class GraphicsEditor:
             glEnable(GL_LIGHTING)
 
     def draw_color_picker(self):
-        """Отрисовка палитры цветов - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ВЛИЯНИЯ ОСВЕЩЕНИЯ"""
-        # Сохраняем атрибуты OpenGL
+        """Отрисовка палитры цветов"""
         glPushAttrib(GL_ALL_ATTRIB_BITS)
         
-        # Рисуем палитру поверх всего
         glMatrixMode(GL_PROJECTION)
         glPushMatrix()
         glLoadIdentity()
@@ -876,14 +818,12 @@ class GraphicsEditor:
         glPushMatrix()
         glLoadIdentity()
         
-        # ВАЖНОЕ ИСПРАВЛЕНИЕ: Полностью отключаем освещение для интерфейса
         glDisable(GL_LIGHTING)
         glDisable(GL_COLOR_MATERIAL)
         glDisable(GL_DEPTH_TEST)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         
-        # Фон для палитры
         glColor4f(0.2, 0.2, 0.2, 0.8)
         glBegin(GL_QUADS)
         glVertex2f(0, 0)
@@ -892,26 +832,23 @@ class GraphicsEditor:
         glVertex2f(0, self.height)
         glEnd()
         
-        # Сама палитра (ПРАВИЛЬНО ПЕРЕВЕРНУТАЯ)
         glEnable(GL_TEXTURE_2D)
         glBindTexture(GL_TEXTURE_2D, self.palette_texture)
-        glColor4f(1, 1, 1, 1)  # Явно устанавливаем белый цвет для текстуры
+        glColor4f(1, 1, 1, 1)
         x_pos = self.width // 2 - 150
         y_pos = self.height // 2 - 150
         glBegin(GL_QUADS)
-        glTexCoord2f(0, 1); glVertex2f(x_pos, y_pos)  # Изменены текстурные координаты
+        glTexCoord2f(0, 1); glVertex2f(x_pos, y_pos)
         glTexCoord2f(1, 1); glVertex2f(x_pos + 300, y_pos)
         glTexCoord2f(1, 0); glVertex2f(x_pos + 300, y_pos + 300)
         glTexCoord2f(0, 0); glVertex2f(x_pos, y_pos + 300)
         glEnd()
         glDisable(GL_TEXTURE_2D)
         
-        # Кнопка действия
         action_button_x = x_pos + 320
         action_button_y = y_pos
         action_button_size = 30
         
-        # Определяем цвет кнопки действия
         if self.temp_selected_color is not None:
             button_color = self.temp_selected_color
         elif self.color_picker_type == 'background':
@@ -920,10 +857,9 @@ class GraphicsEditor:
             button_color = self.cone_color
         elif self.color_picker_type == 'cone_checker_color':
             button_color = self.checker_color1
-        else:  # primitive или input_color
+        else:
             button_color = self.current_primitive_color
         
-        # Рисуем кнопку действия с текущим цветом
         glColor4f(*button_color)
         glBegin(GL_QUADS)
         glVertex2f(action_button_x, action_button_y)
@@ -932,7 +868,6 @@ class GraphicsEditor:
         glVertex2f(action_button_x, action_button_y + action_button_size)
         glEnd()
         
-        # Рамка кнопки действия
         glColor4f(1, 1, 1, 1)
         glLineWidth(2.0)
         glBegin(GL_LINE_LOOP)
@@ -942,29 +877,22 @@ class GraphicsEditor:
         glVertex2f(action_button_x, action_button_y + action_button_size)
         glEnd()
         
-        # Рисуем символ на кнопке действия
-        symbol_margin = 8  # Отступ от краев кнопки
-        glColor4f(1, 1, 1, 1)  # Белый цвет символа
+        symbol_margin = 8
+        glColor4f(1, 1, 1, 1)
         
         if self.color_picker_type == 'input_color':
-            # Для режима ввода цвета рисуем галочку
             glLineWidth(2.0)
             glBegin(GL_LINES)
-            # Первая часть галочки
             glVertex2f(action_button_x + symbol_margin, action_button_y + action_button_size // 2)
             glVertex2f(action_button_x + action_button_size // 2, action_button_y + action_button_size - symbol_margin)
-            # Вторая часть галочки
             glVertex2f(action_button_x + action_button_size // 2, action_button_y + action_button_size - symbol_margin)
             glVertex2f(action_button_x + action_button_size - symbol_margin, action_button_y + symbol_margin)
             glEnd()
         else:
-            # Для других режимов рисуем крестик
             glLineWidth(2.0)
             glBegin(GL_LINES)
-            # Первая диагональ крестика
             glVertex2f(action_button_x + symbol_margin, action_button_y + symbol_margin)
             glVertex2f(action_button_x + action_button_size - symbol_margin, action_button_y + action_button_size - symbol_margin)
-            # Вторая диагональ крестика
             glVertex2f(action_button_x + action_button_size - symbol_margin, action_button_y + symbol_margin)
             glVertex2f(action_button_x + symbol_margin, action_button_y + action_button_size - symbol_margin)
             glEnd()
@@ -976,15 +904,12 @@ class GraphicsEditor:
         glMatrixMode(GL_MODELVIEW)
         glPopMatrix()
         
-        # Восстанавливаем атрибуты OpenGL
         glPopAttrib()
 
     def draw_ui(self):
-        """Отрисовка интерфейса с помощью PyGame - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ВЛИЯНИЯ ОСВЕЩЕНИЯ"""
-        # Сохраняем все атрибуты OpenGL
+        """Отрисовка интерфейса"""
         glPushAttrib(GL_ALL_ATTRIB_BITS)
         
-        # Переключаемся на 2D режим для отрисовки UI
         glMatrixMode(GL_PROJECTION)
         glPushMatrix()
         glLoadIdentity()
@@ -993,47 +918,40 @@ class GraphicsEditor:
         glPushMatrix()
         glLoadIdentity()
         
-        # ВАЖНОЕ ИСПРАВЛЕНИЕ: Полностью отключаем освещение для интерфейса
         glDisable(GL_LIGHTING)
         glDisable(GL_COLOR_MATERIAL)
         glDisable(GL_DEPTH_TEST)
         
-        # Принудительно устанавливаем режим заливки для кнопок
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
         
-        # Отрисовка кнопок по группам с заголовками
-        self.draw_button_group(self.scene_buttons, "Управление сценой", (50, 50, 100))
-        self.draw_button_group(self.primitives_buttons, "Примитивы", (100, 50, 50))
-        self.draw_button_group(self.rendering_buttons, "Настройки отрисовки", (50, 100, 50))
-        self.draw_button_group(self.cone_light_buttons, "Конус и освещение", (100, 50, 100))
+        # Отрисовка кнопок по бокам
+        self.draw_button_group(self.scene_buttons, "Управление сценой", (70, 130, 200))
+        self.draw_button_group(self.primitives_buttons, "Примитивы", (200, 70, 120))
+        self.draw_button_group(self.rendering_buttons, "Настройки отрисовки", (120, 180, 70))
+        self.draw_button_group(self.cone_light_buttons, "Конус и освещение", (180, 70, 180))
         
-        # Возвращаемся к 3D режиму
         glEnable(GL_DEPTH_TEST)
         glMatrixMode(GL_PROJECTION)
         glPopMatrix()
         glMatrixMode(GL_MODELVIEW)
         glPopMatrix()
         
-        # Восстанавливаем атрибуты OpenGL
         glPopAttrib()
         
-        # Отрисовка текста с помощью PyGame (поверх OpenGL)
+        # Отрисовка текста и информационных панелей
         self.draw_text_with_pygame()
         
-        # Отрисовка палитры, если активна
         if self.color_picker_active:
             self.draw_color_picker()
 
     def draw_button_group(self, buttons, title, color):
         """Отрисовка группы кнопок с заголовком"""
-        # Рисуем фон для группы кнопок
         if buttons:
             group_rect = buttons[0]["rect"].unionall([b["rect"] for b in buttons])
-            # Расширяем прямоугольник для заголовка
             group_rect = pygame.Rect(group_rect.left - 5, group_rect.top - 25, 
                                     group_rect.width + 10, group_rect.height + 30)
             
-            # Фон группы
+            # Фон группы (полупрозрачный темный)
             glColor4f(0.1, 0.1, 0.1, 0.7)
             glBegin(GL_QUADS)
             glVertex2f(group_rect.left, group_rect.top)
@@ -1042,8 +960,8 @@ class GraphicsEditor:
             glVertex2f(group_rect.left, group_rect.bottom)
             glEnd()
             
-            # Рамка группы
-            glColor4f(*[c/255.0 for c in color], 1.0)
+            # Рамка группы с цветом темы
+            glColor4f(color[0]/255.0, color[1]/255.0, color[2]/255.0, 1.0)
             glLineWidth(2.0)
             glBegin(GL_LINE_LOOP)
             glVertex2f(group_rect.left, group_rect.top)
@@ -1052,40 +970,46 @@ class GraphicsEditor:
             glVertex2f(group_rect.left, group_rect.bottom)
             glEnd()
         
-        # Рисуем кнопки
+        # Рисуем кнопки с современным стилем
         for button in buttons:
-            # Рисуем прямоугольник кнопки с градиентом
+            # Основной фон кнопки (современный плоский стиль)
+            glColor4f(0.95, 0.95, 0.95, 1.0)
             glBegin(GL_QUADS)
-            glColor4f(0.6, 0.6, 0.6, 1.0)
             glVertex2f(button["rect"].left, button["rect"].top)
             glVertex2f(button["rect"].right, button["rect"].top)
-            glColor4f(0.8, 0.8, 0.8, 1.0)
             glVertex2f(button["rect"].right, button["rect"].bottom)
             glVertex2f(button["rect"].left, button["rect"].bottom)
             glEnd()
             
-            # Рамка кнопки
-            glColor3f(0.3, 0.3, 0.3)
-            glLineWidth(1.5)
+            # Тонкая рамка кнопки
+            glColor4f(0.7, 0.7, 0.7, 1.0)
+            glLineWidth(1.0)
             glBegin(GL_LINE_LOOP)
             glVertex2f(button["rect"].left, button["rect"].top)
             glVertex2f(button["rect"].right, button["rect"].top)
             glVertex2f(button["rect"].right, button["rect"].bottom)
             glVertex2f(button["rect"].left, button["rect"].bottom)
             glEnd()
+            
+            # Акцентная линия сверху кнопки
+            glColor4f(color[0]/255.0, color[1]/255.0, color[2]/255.0, 1.0)
+            glLineWidth(3.0)
+            glBegin(GL_LINES)
+            glVertex2f(button["rect"].left, button["rect"].top)
+            glVertex2f(button["rect"].right, button["rect"].top)
+            glEnd()
 
     def draw_text_with_pygame(self):
-        """Отрисовка текста интерфейса с помощью PyGame - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ВЛИЯНИЯ ОСВЕЩЕНИЯ"""
-        # Создаем поверхность для текста
+        """Отрисовка текста интерфейса"""
         text_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-        text_surface.fill((0, 0, 0, 0))  # Прозрачный фон
+        text_surface.fill((0, 0, 0, 0))
         
         # Отрисовка заголовков групп кнопок
         group_titles = [
-            (self.scene_buttons, "Управление сценой", (50, 50, 100)),
-            (self.primitives_buttons, "Примитивы", (100, 50, 50)),
-            (self.rendering_buttons, "Настройки отрисовки", (50, 100, 50)),
-            (self.cone_light_buttons, "Конус и освещение", (100, 50, 100))
+            (self.scene_buttons, "Управление сценой", (70, 130, 200)),
+            (self.primitives_buttons, "Примитивы", (200, 70, 120)),
+            (self.rendering_buttons, "Настройки отрисовки", (120, 180, 70)),
+            (self.cone_light_buttons, "Конус и освещение", (180, 70, 180))
         ]
         
         for buttons, title, color in group_titles:
@@ -1097,51 +1021,53 @@ class GraphicsEditor:
         
         # Отрисовка текста на кнопках
         for button in self.all_buttons:
-            text = self.font.render(button["text"], True, (0, 0, 0))
+            text = self.font.render(button["text"], True, (40, 40, 40))
             text_rect = text.get_rect(center=button["rect"].center)
             text_surface.blit(text, text_rect)
         
-        # Отрисовка информационных панелей с подложками
-        self.draw_info_panel(text_surface, "status", "Статус сцены", [
-            f"Режим: {['Заливка', 'Каркас', 'Точки'][self.current_render_mode]}",
-            f"Примитивов: {len(self.primitives)}",
-            f"Источников света: {len(self.light_sources)}",
-            f"Свет: {'ВКЛ' if self.light_enabled else 'ВЫКЛ'}",
-            f"Толщина: {self.line_width}",
-            f"Тип линии: {'Сплошная' if self.line_style == 0xFFFF else 'Пунктирная' if self.line_style == 0xF0F0 else 'Точечная'}",
-            f"Текстура конуса: {'Цвет' if self.cone_texture_mode == 'color' else 'Шахматная' if self.cone_texture_mode == 'checker' else 'Пользовательская'}",
-            f"Интенсивность света: {self.light_intensity:.1f}"
-        ])
-        
-        self.draw_info_panel(text_surface, "coords", "Система координат", [
-            "X - Красная ось",
-            "Y - Зеленая ось", 
-            "Z - Синяя ось",
-            "Метки: каждые 2 единицы"
-        ])
-        
-        self.draw_info_panel(text_surface, "controls", "Управление", [
-            "Управление камерой:",
-            "ЛКМ + движение - вращение",
-            "Колесико - приближение/отдаление",
-            "Пробел - сброс камеры",
-            "R - сброс вращения конуса",
-            "L - переключение света",
-            "M - смена режима отрисовки",
-            "C - очистка объектов",
-            "+/- - интенсивность света"
-        ])
-        
-        # Отрисовка поля ввода, если активно
-        if self.input_active:
-            input_rect = pygame.Rect(200, self.height - 50, self.width - 400, 30)
-            # Подложка для поля ввода
-            pygame.draw.rect(text_surface, (40, 40, 40, 220), input_rect.inflate(10, 10))
-            pygame.draw.rect(text_surface, (255, 255, 255), input_rect)
-            pygame.draw.rect(text_surface, (0, 0, 0), input_rect, 2)
+        # Отрисовка информационных панелей (только если они видимы)
+        if self.info_panels_visible:
+            self.draw_info_panel(text_surface, "status", "Статус сцены", [
+                f"Режим: {['Заливка', 'Каркас', 'Точки'][self.current_render_mode]}",
+                f"Примитивов: {len(self.primitives)}",
+                f"Источников света: {len(self.light_sources)}",
+                f"Свет: {'ВКЛ' if self.light_enabled else 'ВЫКЛ'}",
+                f"Толщина: {self.line_width}",
+                f"Тип линии: {'Сплошная' if self.line_style == 0xFFFF else 'Пунктирная' if self.line_style == 0xF0F0 else 'Точечная'}",
+                f"Текстура конуса: {'Цвет' if self.cone_texture_mode == 'color' else 'Шахматная' if self.cone_texture_mode == 'checker' else 'Пользовательская'}",
+                f"Интенсивность света: {self.light_intensity:.1f}"
+            ])
             
-            prompt_rect = pygame.Rect(10, self.height - 80, self.width - 20, 25)
-            pygame.draw.rect(text_surface, (40, 40, 40, 220), prompt_rect.inflate(10, 5))
+            self.draw_info_panel(text_surface, "coords", "Система координат", [
+                "X - Красная ось",
+                "Y - Зеленая ось", 
+                "Z - Синяя ось",
+                "Метки: каждые 2 единицы"
+            ])
+            
+            self.draw_info_panel(text_surface, "controls", "Управление", [
+                "Управление камерой:",
+                "ЛКМ + движение - вращение",
+                "Колесико - приближение/отдаление",
+                "Пробел - сброс камеры",
+                "R - сброс вращения конуса",
+                "L - переключение света",
+                "M - смена режима отрисовки",
+                "C - очистка объектов",
+                "+/- - интенсивность света",
+                "I - скрыть/показать информацию"
+            ])
+        
+        # Отрисовка поля ввода (всегда внизу)
+        if self.input_active:
+            input_rect = pygame.Rect(200, self.height - 50, self.width - 400, 35)
+            # Подложка для поля ввода
+            pygame.draw.rect(text_surface, (30, 30, 30, 240), input_rect.inflate(10, 10))
+            pygame.draw.rect(text_surface, (255, 255, 255), input_rect)
+            pygame.draw.rect(text_surface, (100, 100, 100), input_rect, 2)
+            
+            prompt_rect = pygame.Rect(10, self.height - 85, self.width - 20, 25)
+            pygame.draw.rect(text_surface, (30, 30, 30, 240), prompt_rect.inflate(10, 5))
             
             prompt_text = self.input_font.render(self.input_prompt, True, (255, 255, 255))
             text_surface.blit(prompt_text, (prompt_rect.x + 5, prompt_rect.y + 5))
@@ -1150,7 +1076,6 @@ class GraphicsEditor:
             text_surface.blit(input_text, (input_rect.x + 5, input_rect.y + 5))
         
         # Конвертируем поверхность PyGame в текстуру OpenGL
-        # Переворачиваем поверхность, чтобы исправить перевернутый текст
         text_surface = pygame.transform.flip(text_surface, False, True)
         
         texture_data = pygame.image.tostring(text_surface, "RGBA", True)
@@ -1161,10 +1086,8 @@ class GraphicsEditor:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
         
-        # Сохраняем атрибуты OpenGL
         glPushAttrib(GL_ALL_ATTRIB_BITS)
         
-        # Рисуем текстуру поверх всего
         glMatrixMode(GL_PROJECTION)
         glPushMatrix()
         glLoadIdentity()
@@ -1173,14 +1096,13 @@ class GraphicsEditor:
         glPushMatrix()
         glLoadIdentity()
         
-        # ВАЖНОЕ ИСПРАВЛЕНИЕ: Полностью отключаем освещение для текста интерфейса
         glDisable(GL_LIGHTING)
         glDisable(GL_COLOR_MATERIAL)
         glDisable(GL_DEPTH_TEST)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         
-        glColor4f(1, 1, 1, 1)  # Явно устанавливаем белый цвет для текстуры
+        glColor4f(1, 1, 1, 1)
         glBegin(GL_QUADS)
         glTexCoord2f(0, 0); glVertex2f(0, 0)
         glTexCoord2f(1, 0); glVertex2f(self.width, 0)
@@ -1197,15 +1119,14 @@ class GraphicsEditor:
         glDisable(GL_TEXTURE_2D)
         glDeleteTextures([text_texture])
         
-        # Восстанавливаем атрибуты OpenGL
         glPopAttrib()
 
     def draw_info_panel(self, surface, panel_key, title, lines):
-        """Отрисовка информационной панели с заголовком и подложкой"""
+        """Отрисовка информационной панели"""
         panel = self.info_panels[panel_key]
         
-        # Рисуем подложку
-        pygame.draw.rect(surface, (40, 40, 40, 220), panel)
+        # Полупрозрачная темная подложка
+        pygame.draw.rect(surface, (30, 30, 30, 220), panel)
         pygame.draw.rect(surface, (80, 80, 80, 255), panel, 2)
         
         # Заголовок
@@ -1221,14 +1142,14 @@ class GraphicsEditor:
         for i, line in enumerate(lines):
             color = (255, 255, 255)
             if panel_key == "coords":
-                if i == 1: color = (255, 0, 0)    # X - красный
-                elif i == 2: color = (0, 255, 0)  # Y - зеленый
-                elif i == 3: color = (0, 0, 255)  # Z - синий
+                if i == 1: color = (255, 100, 100)    # X - красный
+                elif i == 2: color = (100, 255, 100)  # Y - зеленый
+                elif i == 3: color = (100, 100, 255)  # Z - синий
             elif panel_key == "controls":
                 if i == 0: color = (200, 200, 255)  # Заголовок управления
             
             text = self.font.render(line, True, color)
-            surface.blit(text, (panel.x + 10, panel.y + 30 + i * 20))
+            surface.blit(text, (panel.x + 10, panel.y + 30 + i * 18))
 
     def run(self):
         """Основной цикл программы"""
@@ -1237,7 +1158,7 @@ class GraphicsEditor:
         
         print("3D Graphics Editor Started!")
         print("Controls:")
-        print("- Click buttons on the left for actions")
+        print("- Click buttons on the left/right for actions")
         print("- Left mouse button + drag: Rotate camera")
         print("- Mouse wheel: Zoom in/out")
         print("- Space: Reset camera")
@@ -1246,18 +1167,16 @@ class GraphicsEditor:
         print("- M key: Change render mode")
         print("- C key: Clear objects")
         print("- +/- keys: Adjust light intensity")
+        print("- I key: Toggle info panels visibility")
         
         while running:
             running = self.handle_events()
             
-            # Очистка экрана
             glClearColor(*self.background_color)
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
             
-            # Настройка камеры
             self.setup_camera()
             
-            # Отрисовка объектов
             self.draw_coordinate_system()
             self.draw_cone()
             self.draw_primitives()
