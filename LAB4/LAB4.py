@@ -213,13 +213,16 @@ class GraphicsEditor:
         button_height = 35
         button_margin = 8
         
+        # Сдвигаем все элементы вниз, чтобы освободить место под заголовок окна
+        vertical_offset = 40
+        
         # Левая колонка кнопок
         left_x = 10
-        left_y_start = 10
+        left_y_start = 10 + vertical_offset
         
         # Правая колонка кнопок  
         right_x = self.width - button_width - 10
-        right_y_start = 10
+        right_y_start = 10 + vertical_offset
         
         # СЕКЦИЯ: Управление сценой (левая колонка)
         self.scene_buttons = [
@@ -268,15 +271,14 @@ class GraphicsEditor:
         self.all_buttons = (self.scene_buttons + self.primitives_buttons + 
                            self.rendering_buttons + self.cone_light_buttons)
         
-        # Области для информационных панелей (теперь они располагаются вверху по центру)
-        panel_width = 300
-        panel_height = 120
-        panel_x = (self.width - panel_width) // 2
+        # Области для информационных панелей (теперь они располагаются справа от левых кнопок)
+        panel_width = 350  # Увеличиваем ширину для лучшего отображения текста
+        panel_x = left_x + button_width + 20  # Располагаем справа от левых кнопок
         
         self.info_panels = {
-            "status": pygame.Rect(panel_x, 10, panel_width, panel_height),
-            "coords": pygame.Rect(panel_x, 140, panel_width, panel_height),
-            "controls": pygame.Rect(panel_x, 270, panel_width, 150)
+            "status": pygame.Rect(panel_x, 10 + vertical_offset, panel_width, 160),  # Увеличиваем высоту
+            "coords": pygame.Rect(panel_x, 180 + vertical_offset, panel_width, 120),
+            "controls": pygame.Rect(panel_x, 310 + vertical_offset, panel_width, 220)  # Увеличиваем высоту
         }
 
     def handle_events(self):
