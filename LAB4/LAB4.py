@@ -52,6 +52,9 @@ class GraphicsEditor:
         self.checker_color1 = [1.0, 0.0, 0.0, 1.0]  # Первый цвет шахматной текстуры
         self.checker_color2 = [1.0, 1.0, 0.0, 1.0]  # Второй цвет шахматной текстуры
         
+        # НАСТРОЙКИ ОСВЕЩЕНИЯ (сохраняем для интерфейса)
+        self.light_intensity = 1.0  # Общая интенсивность освещения (0.1 - 10.0)
+        
         # Инициализация интерфейса
         pygame.init()
         self.screen = pygame.display.set_mode((self.width, self.height), pygame.DOUBLEBUF | pygame.OPENGL)
@@ -70,7 +73,7 @@ class GraphicsEditor:
         self.create_texture()
         self.create_cone_checker_texture()
         self.setup_ui()
-        self.setup_lighting()
+        self.setup_lighting()  # Настраиваем освещение при инициализации
         
         # Создаем текстуру палитры один раз при инициализации
         self.create_palette_texture()
@@ -105,15 +108,16 @@ class GraphicsEditor:
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
     def setup_lighting(self):
-        """Настройка освещения"""
+        """Настройка освещения - ВОЗВРАЩАЕМ РАБОЧУЮ РЕАЛИЗАЦИЮ"""
+        # ВСЕГДА включаем освещение для корректной работы
         glEnable(GL_LIGHTING)
         
         # Базовый источник света
         glEnable(GL_LIGHT0)
         glLightfv(GL_LIGHT0, GL_POSITION, [2.0, 2.0, 2.0, 1.0])
-        glLightfv(GL_LIGHT0, GL_AMBIENT, [0.2, 0.2, 0.2, 1.0])
-        glLightfv(GL_LIGHT0, GL_DIFFUSE, [0.8, 0.8, 0.8, 1.0])
-        glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
+        glLightfv(GL_LIGHT0, GL_AMBIENT, [0.2 * self.light_intensity, 0.2 * self.light_intensity, 0.2 * self.light_intensity, 1.0])
+        glLightfv(GL_LIGHT0, GL_DIFFUSE, [0.8 * self.light_intensity, 0.8 * self.light_intensity, 0.8 * self.light_intensity, 1.0])
+        glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0 * self.light_intensity, 1.0 * self.light_intensity, 1.0 * self.light_intensity, 1.0])
         
         # Дополнительные источники света
         light_ids = [GL_LIGHT1, GL_LIGHT2, GL_LIGHT3, GL_LIGHT4, GL_LIGHT5, GL_LIGHT6, GL_LIGHT7]
@@ -121,9 +125,9 @@ class GraphicsEditor:
             if i < len(light_ids):
                 glEnable(light_ids[i])
                 glLightfv(light_ids[i], GL_POSITION, light_pos + [1.0])
-                glLightfv(light_ids[i], GL_AMBIENT, [0.1, 0.1, 0.1, 1.0])
-                glLightfv(light_ids[i], GL_DIFFUSE, [0.7, 0.7, 0.7, 1.0])
-                glLightfv(light_ids[i], GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
+                glLightfv(light_ids[i], GL_AMBIENT, [0.1 * self.light_intensity, 0.1 * self.light_intensity, 0.1 * self.light_intensity, 1.0])
+                glLightfv(light_ids[i], GL_DIFFUSE, [0.7 * self.light_intensity, 0.7 * self.light_intensity, 0.7 * self.light_intensity, 1.0])
+                glLightfv(light_ids[i], GL_SPECULAR, [1.0 * self.light_intensity, 1.0 * self.light_intensity, 1.0 * self.light_intensity, 1.0])
         
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE)
@@ -243,7 +247,9 @@ class GraphicsEditor:
             {"rect": pygame.Rect(self.width - 190, 10, 180, 30), "text": "Цвет конуса", "action": "cone_color"},
             {"rect": pygame.Rect(self.width - 190, 50, 180, 30), "text": "Шахматная текстура конуса", "action": "cone_checker_texture"},
             {"rect": pygame.Rect(self.width - 190, 90, 180, 30), "text": "Пользовательская текстура конуса", "action": "cone_custom_texture"},
-            {"rect": pygame.Rect(self.width - 190, 130, 180, 30), "text": "Загрузить текстуру", "action": "load_texture"}
+            {"rect": pygame.Rect(self.width - 190, 130, 180, 30), "text": "Загрузить текстуру", "action": "load_texture"},
+            {"rect": pygame.Rect(self.width - 190, 170, 180, 30), "text": "Увеличить интенсивность света", "action": "increase_light_intensity"},
+            {"rect": pygame.Rect(self.width - 190, 210, 180, 30), "text": "Уменьшить интенсивность света", "action": "decrease_light_intensity"}
         ]
 
     def handle_events(self):
@@ -291,7 +297,7 @@ class GraphicsEditor:
                     if event.key == pygame.K_r:
                         self.cone_rotation = [0, 0, 0]  # Сброс вращения
                     elif event.key == pygame.K_l:
-                        self.light_enabled = not self.light_enabled
+                        self.toggle_lighting()
                     elif event.key == pygame.K_c:
                         self.clear_objects()
                     elif event.key == pygame.K_SPACE:
@@ -301,6 +307,10 @@ class GraphicsEditor:
                         self.camera_distance = -5
                     elif event.key == pygame.K_m:
                         self.change_render_mode()  # Смена режима отрисовки по клавише M
+                    elif event.key == pygame.K_PLUS or event.key == pygame.K_EQUALS:
+                        self.increase_light_intensity()
+                    elif event.key == pygame.K_MINUS:
+                        self.decrease_light_intensity()
         return True
 
     def handle_click(self, pos):
@@ -482,8 +492,7 @@ class GraphicsEditor:
             self.line_stipple_factor = 1
             print("Тип линии: Точечная")
         elif action == "toggle_light":
-            self.light_enabled = not self.light_enabled
-            print(f"Освещение: {'ВКЛ' if self.light_enabled else 'ВЫКЛ'}")
+            self.toggle_lighting()
         elif action == "add_light":
             self.start_input("Введите координаты источника света (x,y,z):", "light")
         elif action == "rotate_cone":
@@ -493,6 +502,27 @@ class GraphicsEditor:
             self.clear_objects()
         elif action == "load_texture":
             self.start_input("Введите имя файла текстуры (в папке с программой):", "texture")
+        elif action == "increase_light_intensity":
+            self.increase_light_intensity()
+        elif action == "decrease_light_intensity":
+            self.decrease_light_intensity()
+
+    def toggle_lighting(self):
+        """Включает/выключает освещение"""
+        self.light_enabled = not self.light_enabled
+        print(f"Освещение: {'ВКЛ' if self.light_enabled else 'ВЫКЛ'}")
+
+    def increase_light_intensity(self):
+        """Увеличивает интенсивность освещения"""
+        self.light_intensity = min(10.0, self.light_intensity + 0.1)
+        self.setup_lighting()
+        print(f"Интенсивность освещения увеличена до: {self.light_intensity:.1f}")
+
+    def decrease_light_intensity(self):
+        """Уменьшает интенсивность освещения"""
+        self.light_intensity = max(0.1, self.light_intensity - 0.1)
+        self.setup_lighting()
+        print(f"Интенсивность освещения уменьшена до: {self.light_intensity:.1f}")
 
     def start_input_for_primitive(self):
         """Запускает ввод координат для выбранного примитива"""
@@ -666,13 +696,14 @@ class GraphicsEditor:
         glPopAttrib()
 
     def draw_cone(self):
-        """Рисование конуса с текстурой и освещением"""
+        """Рисование конуса с текстурой и освещением - ИСПРАВЛЕННАЯ ВЕРСИЯ"""
         glPushMatrix()
         glTranslatef(0, 0, -2)
         glRotatef(self.cone_rotation[0], 1, 0, 0)
         glRotatef(self.cone_rotation[1], 0, 1, 0)
         glRotatef(self.cone_rotation[2], 0, 0, 1)
         
+        # Управление освещением
         if self.light_enabled:
             glEnable(GL_LIGHTING)
         else:
@@ -769,6 +800,7 @@ class GraphicsEditor:
         if self.render_modes[self.current_render_mode] == GL_LINE and self.line_style != 0xFFFF:
             glDisable(GL_LINE_STIPPLE)
             
+        # Восстанавливаем освещение если оно было включено
         if self.light_enabled:
             glEnable(GL_LIGHTING)
             
@@ -793,7 +825,7 @@ class GraphicsEditor:
             glEnable(GL_LIGHTING)
 
     def draw_color_picker(self):
-        """Отрисовка палитры цветов"""
+        """Отрисовка палитры цветов - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ВЛИЯНИЯ ОСВЕЩЕНИЯ"""
         # Сохраняем атрибуты OpenGL
         glPushAttrib(GL_ALL_ATTRIB_BITS)
         
@@ -806,6 +838,9 @@ class GraphicsEditor:
         glPushMatrix()
         glLoadIdentity()
         
+        # ВАЖНОЕ ИСПРАВЛЕНИЕ: Полностью отключаем освещение для интерфейса
+        glDisable(GL_LIGHTING)
+        glDisable(GL_COLOR_MATERIAL)
         glDisable(GL_DEPTH_TEST)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -822,7 +857,7 @@ class GraphicsEditor:
         # Сама палитра (ПРАВИЛЬНО ПЕРЕВЕРНУТАЯ)
         glEnable(GL_TEXTURE_2D)
         glBindTexture(GL_TEXTURE_2D, self.palette_texture)
-        glColor4f(1, 1, 1, 1)
+        glColor4f(1, 1, 1, 1)  # Явно устанавливаем белый цвет для текстуры
         x_pos = self.width // 2 - 150
         y_pos = self.height // 2 - 150
         glBegin(GL_QUADS)
@@ -907,7 +942,7 @@ class GraphicsEditor:
         glPopAttrib()
 
     def draw_ui(self):
-        """Отрисовка интерфейса с помощью PyGame"""
+        """Отрисовка интерфейса с помощью PyGame - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ВЛИЯНИЯ ОСВЕЩЕНИЯ"""
         # Сохраняем все атрибуты OpenGL
         glPushAttrib(GL_ALL_ATTRIB_BITS)
         
@@ -920,8 +955,10 @@ class GraphicsEditor:
         glPushMatrix()
         glLoadIdentity()
         
-        glDisable(GL_DEPTH_TEST)
+        # ВАЖНОЕ ИСПРАВЛЕНИЕ: Полностью отключаем освещение для интерфейса
         glDisable(GL_LIGHTING)
+        glDisable(GL_COLOR_MATERIAL)
+        glDisable(GL_DEPTH_TEST)
         
         # Принудительно устанавливаем режим заливки для кнопок
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
@@ -986,7 +1023,7 @@ class GraphicsEditor:
             self.draw_color_picker()
 
     def draw_text_with_pygame(self):
-        """Отрисовка текста интерфейса с помощью PyGame"""
+        """Отрисовка текста интерфейса с помощью PyGame - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ ВЛИЯНИЯ ОСВЕЩЕНИЯ"""
         # Создаем поверхность для текста
         text_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         text_surface.fill((0, 0, 0, 0))  # Прозрачный фон
@@ -1015,7 +1052,8 @@ class GraphicsEditor:
             f"Свет: {'ВКЛ' if self.light_enabled else 'ВЫКЛ'}",
             f"Толщина: {self.line_width}",
             f"Тип линии: {line_style_names.get(self.line_style, 'Сплошная')}",
-            f"Текстура конуса: {texture_mode_names.get(self.cone_texture_mode, 'Цвет')}"
+            f"Текстура конуса: {texture_mode_names.get(self.cone_texture_mode, 'Цвет')}",
+            f"Интенсивность света: {self.light_intensity:.1f}"
         ]
         
         for i, text in enumerate(status_text):
@@ -1045,12 +1083,13 @@ class GraphicsEditor:
             "R - сброс вращения конуса",
             "L - переключение света",
             "M - смена режима отрисовки",
-            "C - очистка объектов"
+            "C - очистка объектов",
+            "+/- - интенсивность света"
         ]
         
         for i, text in enumerate(instructions):
             text_surf = self.font.render(text, True, (200, 200, 255))
-            text_surface.blit(text_surf, (10, self.height - 180 + i * 20))
+            text_surface.blit(text_surf, (10, self.height - 200 + i * 20))
         
         # Отрисовка поля ввода, если активно
         if self.input_active:
@@ -1088,11 +1127,14 @@ class GraphicsEditor:
         glPushMatrix()
         glLoadIdentity()
         
+        # ВАЖНОЕ ИСПРАВЛЕНИЕ: Полностью отключаем освещение для текста интерфейса
+        glDisable(GL_LIGHTING)
+        glDisable(GL_COLOR_MATERIAL)
         glDisable(GL_DEPTH_TEST)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         
-        glColor4f(1, 1, 1, 1)
+        glColor4f(1, 1, 1, 1)  # Явно устанавливаем белый цвет для текстуры
         glBegin(GL_QUADS)
         glTexCoord2f(0, 0); glVertex2f(0, 0)
         glTexCoord2f(1, 0); glVertex2f(self.width, 0)
@@ -1127,6 +1169,7 @@ class GraphicsEditor:
         print("- L key: Toggle lighting")
         print("- M key: Change render mode")
         print("- C key: Clear objects")
+        print("- +/- keys: Adjust light intensity")
         
         while running:
             running = self.handle_events()
